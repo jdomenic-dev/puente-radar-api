@@ -1,0 +1,45 @@
+import { Body, Controller, DefaultValuePipe, Get, Param, ParseIntPipe, Post, Query } from '@nestjs/common';
+import { ApiCreatedResponse, ApiNotFoundResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ReportsService } from './reports.service.js';
+import { CreateReportDto } from './dto/create-report.dto.js';
+import { ReportQueryDto } from './dto/report-query.dto.js';
+import { Report } from './entities/report.entity.js';
+
+@ApiTags('reports')
+@Controller('reports')
+export class ReportsController {
+  constructor(private readonly reportsService: ReportsService) {}
+
+  @Post()
+  @ApiOperation({ summary: 'Submit an anonymous crossing report' })
+  @ApiCreatedResponse({ type: Report })
+  @ApiNotFoundResponse({ description: 'Bridge not found' })
+  create(@Body() dto: CreateReportDto): Promise<Report> {
+    return this.reportsService.create(dto);
+  }
+
+  @Get()
+  @ApiOperation({ summary: 'List reports with optional bridgeId filter and limit' })
+  @ApiOkResponse({ type: [Report] })
+  findAll(@Query() query: ReportQueryDto): Promise<Report[]> {
+    return this.reportsService.findAll(query);
+  }
+
+  @Get('summary/home')
+  @ApiOperation({ summary: 'Home summary: all bridges with recent report count (last 60 min)' })
+  @ApiOkResponse({ description: 'Array of bridge summaries' })
+  getHomeSummary() {
+    return this.reportsService.getHomeSummary();
+  }
+
+  @Get('bridge/:bridgeId/recent')
+  @ApiOperation({ summary: 'Get recent reports for a specific bridge' })
+  @ApiOkResponse({ type: [Report] })
+  @ApiNotFoundResponse({ description: 'Bridge not found' })
+  findRecentByBridge(
+    @Param('bridgeId') bridgeId: string,
+    @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
+  ): Promise<Report[]> {
+    return this.reportsService.findRecentByBridge(bridgeId, limit);
+  }
+}

@@ -1,0 +1,25 @@
+# Dependencies
+/node_modules
+
+# Build output
+/dist
+
+# Environment variables — copy from .env.example
+.env
+.env.local
+.env.*.local
+
+# TypeScript incremental build info
+*.tsbuildinfo
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor
+.DS_Store
+.idea
+.vscode
+
+# Coverage
+/coverage
