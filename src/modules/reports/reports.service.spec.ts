@@ -2,8 +2,11 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { NotFoundException } from '@nestjs/common';
 import { ObjectLiteral, Repository } from 'typeorm';
+import { validate } from 'class-validator';
+import { plainToInstance } from 'class-transformer';
 import { ReportsService } from './reports.service.js';
 import { BridgesService } from '../bridges/bridges.service.js';
+import { CreateReportDto } from './dto/create-report.dto.js';
 import { Report } from './entities/report.entity.js';
 import { Bridge } from '../bridges/entities/bridge.entity.js';
 import { ReportSource, ReportStatus } from '../../common/enums/report.enum.js';
@@ -56,6 +59,52 @@ const mockBridgesService = {
   findOneById: jest.fn(),
   getHomeSummary: jest.fn(),
 };
+
+// ── CreateReportDto validation ────────────────────────────────────────────────
+
+describe('CreateReportDto validation', () => {
+  it('rejects a payload that omits laneType — error targets laneType', async () => {
+    const dto = plainToInstance(CreateReportDto, {
+      bridgeId: '00000000-0000-0000-0000-000000000001',
+      lineStatus: ReportStatus.Pending,
+      reportedWaitMinutes: 30,
+      // laneType deliberately omitted
+    });
+
+    const errors = await validate(dto);
+
+    const laneTypeError = errors.find((e) => e.property === 'laneType');
+    expect(laneTypeError).toBeDefined();
+    expect(errors.length).toBeGreaterThan(0);
+  });
+
+  it('accepts a valid payload that includes laneType', async () => {
+    const dto = plainToInstance(CreateReportDto, {
+      bridgeId: '00000000-0000-0000-0000-000000000001',
+      laneType: LaneType.General,
+      lineStatus: ReportStatus.Pending,
+      reportedWaitMinutes: 30,
+    });
+
+    const errors = await validate(dto);
+
+    const laneTypeError = errors.find((e) => e.property === 'laneType');
+    expect(laneTypeError).toBeUndefined();
+  });
+
+  it('rejects an invalid laneType value', async () => {
+    const dto = plainToInstance(CreateReportDto, {
+      bridgeId: '00000000-0000-0000-0000-000000000001',
+      laneType: 'not_a_lane',
+      lineStatus: ReportStatus.Pending,
+    });
+
+    const errors = await validate(dto);
+
+    const laneTypeError = errors.find((e) => e.property === 'laneType');
+    expect(laneTypeError).toBeDefined();
+  });
+});
 
 describe('ReportsService', () => {
   let service: ReportsService;
@@ -325,20 +374,30 @@ describe('ReportsService', () => {
       expect(result.weightedMean).toBeCloseTo(0, 0);
     });
 
-    it('applies correct recency weights: 0-15min=1.0, 16-30=0.8, 31-60=0.5, 61-90=0.3', async () => {
+    it('applies correct recency weights: 0-15min=1.0, 16-30=0.8, 31-60=0.5, 61-90=0.3; >90 excluded', async () => {
+      // Each bucket has a distinct wait value so an incorrect weight breaks the assertion.
+      // Bucket 0-15  → weight 1.0, wait  10 → contribution  10.0
+      // Bucket 16-30 → weight 0.8, wait  40 → contribution  32.0
+      // Bucket 31-60 → weight 0.5, wait  80 → contribution  40.0
+      // Bucket 61-90 → weight 0.3, wait 120 → contribution  36.0
+      // >90 min      → excluded entirely
+      //
+      // weightedSum  = 10 + 32 + 40 + 36 = 118
+      // totalWeight  = 1.0 + 0.8 + 0.5 + 0.3 = 2.6
+      // weightedMean = 118 / 2.6 ≈ 45.3846…
       const reports = [
-        makeUsableReport({ minutesAgo: 10, reportedWaitMinutes: 100 }), // weight 1.0
-        makeUsableReport({ minutesAgo: 20, reportedWaitMinutes: 100 }), // weight 0.8
-        makeUsableReport({ minutesAgo: 45, reportedWaitMinutes: 100 }), // weight 0.5
-        makeUsableReport({ minutesAgo: 75, reportedWaitMinutes: 100 }), // weight 0.3
+        makeUsableReport({ minutesAgo: 10, reportedWaitMinutes: 10 }),  // weight 1.0
+        makeUsableReport({ minutesAgo: 20, reportedWaitMinutes: 40 }),  // weight 0.8
+        makeUsableReport({ minutesAgo: 45, reportedWaitMinutes: 80 }),  // weight 0.5
+        makeUsableReport({ minutesAgo: 75, reportedWaitMinutes: 120 }), // weight 0.3
+        makeUsableReport({ minutesAgo: 95, reportedWaitMinutes: 999 }), // >90 — excluded
       ];
       repo.find!.mockResolvedValue(reports);
 
       const result = await service.findUsableReports('bridge-uuid-1', LaneType.General);
 
-      // All same value (100), so weighted mean = 100 regardless of weights
-      expect(result.sampleSize).toBe(4);
-      expect(result.weightedMean).toBeCloseTo(100, 0);
+      expect(result.sampleSize).toBe(4); // 5th report excluded
+      expect(result.weightedMean).toBeCloseTo(45.38, 1);
     });
 
     it('returns sampleSize 0 and weightedMean null when no usable reports', async () => {

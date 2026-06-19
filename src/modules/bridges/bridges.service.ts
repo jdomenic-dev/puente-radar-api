@@ -71,12 +71,10 @@ export class BridgesService {
       where: { slug: dto.slug },
     });
     if (existing) {
-      // Update mutable fields on existing rows
+      // Update cbpPortNumber only — status is managed by operations, not by seed/upsert.
+      // Overwriting status here would reset operational state on every seed re-run.
       if (dto.cbpPortNumber !== undefined) {
         existing.cbpPortNumber = dto.cbpPortNumber;
-      }
-      if (dto.status !== undefined) {
-        existing.status = dto.status;
       }
       return this.bridgeRepository.save(existing);
     }

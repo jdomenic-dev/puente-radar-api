@@ -183,6 +183,22 @@ describe('BridgesService', () => {
 
       expect(result.cbpPortNumber).toBe(240201);
     });
+
+    it('does NOT reset operational status of an existing bridge — seed re-run safety', async () => {
+      // Bridge is currently High (operational state set by an admin).
+      // Seed calls upsertBySlug with status: Low.
+      // upsertBySlug must NOT overwrite status on existing rows.
+      const existing = makeBridge({ slug: 'puente-libre', status: BridgeStatus.High, cbpPortNumber: null });
+      repo.findOne!.mockResolvedValue(existing);
+      // save() will return whatever the entity holds at call time
+      repo.save!.mockImplementation((entity: Bridge) => Promise.resolve({ ...entity }));
+
+      const result = await service.upsertBySlug({ name: 'Puente Libre / Córdova-Américas', slug: 'puente-libre', status: BridgeStatus.Low, cbpPortNumber: 240201 });
+
+      // cbpPortNumber IS updated; status is NOT reset
+      expect(result.cbpPortNumber).toBe(240201);
+      expect(result.status).toBe(BridgeStatus.High);
+    });
   });
 
   // ── getHomeSummary ────────────────────────────────────────────────────────

@@ -21,6 +21,7 @@ export class Report {
   @Column({
     type: 'enum',
     enum: LaneType,
+    enumName: 'lane_type_enum',
   })
   laneType: LaneType;
 
