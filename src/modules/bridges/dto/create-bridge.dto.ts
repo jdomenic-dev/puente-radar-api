@@ -28,6 +28,11 @@ export class CreateBridgeDto {
   @IsEnum(WaitTrend)
   trend?: WaitTrend;
 
+  @ApiPropertyOptional({ description: 'CBP port number for official data mapping', example: 240201 })
+  @IsOptional()
+  @IsInt()
+  cbpPortNumber?: number;
+
   @ApiPropertyOptional({ example: 0 })
   @IsOptional()
   @IsInt()

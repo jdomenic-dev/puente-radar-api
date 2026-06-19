@@ -26,6 +26,7 @@ function makeBridge(overrides: Partial<Bridge> = {}): Bridge {
     trend: null,
     sortOrder: 1,
     lastUpdatedAt: null,
+    cbpPortNumber: null,
     reports: [],
     ...overrides,
   };
@@ -141,6 +142,46 @@ describe('BridgesService', () => {
       await expect(service.updateStatus('nonexistent', { status: BridgeStatus.High })).rejects.toThrow(
         NotFoundException,
       );
+    });
+  });
+
+  // ── upsertBySlug ──────────────────────────────────────────────────────────
+
+  describe('upsertBySlug()', () => {
+    it('creates a new bridge when slug does not exist', async () => {
+      repo.findOne!.mockResolvedValue(null);
+      const newBridge = makeBridge({ slug: 'puente-nuevo', cbpPortNumber: null });
+      repo.create!.mockReturnValue(newBridge);
+      repo.save!.mockResolvedValue(newBridge);
+
+      const result = await service.upsertBySlug({ name: 'Puente Nuevo', slug: 'puente-nuevo' });
+
+      expect(repo.create).toHaveBeenCalled();
+      expect(repo.save).toHaveBeenCalled();
+      expect(result.slug).toBe('puente-nuevo');
+    });
+
+    it('updates cbpPortNumber on an existing row and saves', async () => {
+      const existing = makeBridge({ slug: 'puente-libre', cbpPortNumber: null });
+      repo.findOne!.mockResolvedValue(existing);
+      const updated = { ...existing, cbpPortNumber: 240201 };
+      repo.save!.mockResolvedValue(updated);
+
+      const result = await service.upsertBySlug({ name: 'Puente Libre / Córdova-Américas', slug: 'puente-libre', cbpPortNumber: 240201 });
+
+      expect(repo.save).toHaveBeenCalled();
+      expect(result.cbpPortNumber).toBe(240201);
+    });
+
+    it('does not overwrite cbpPortNumber when dto omits it', async () => {
+      const existing = makeBridge({ slug: 'puente-libre', cbpPortNumber: 240201 });
+      repo.findOne!.mockResolvedValue(existing);
+      const saved = { ...existing };
+      repo.save!.mockResolvedValue(saved);
+
+      const result = await service.upsertBySlug({ name: 'Puente Libre / Córdova-Américas', slug: 'puente-libre' });
+
+      expect(result.cbpPortNumber).toBe(240201);
     });
   });
 

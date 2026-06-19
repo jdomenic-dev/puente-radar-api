@@ -31,6 +31,9 @@ export class Bridge {
   })
   trend: WaitTrend | null;
 
+  @Column({ type: 'int', nullable: true, default: null })
+  cbpPortNumber: number | null;
+
   @Column({ type: 'int', default: 0 })
   sortOrder: number;
 

@@ -71,7 +71,14 @@ export class BridgesService {
       where: { slug: dto.slug },
     });
     if (existing) {
-      return existing;
+      // Update mutable fields on existing rows
+      if (dto.cbpPortNumber !== undefined) {
+        existing.cbpPortNumber = dto.cbpPortNumber;
+      }
+      if (dto.status !== undefined) {
+        existing.status = dto.status;
+      }
+      return this.bridgeRepository.save(existing);
     }
     const bridge = this.bridgeRepository.create(dto);
     return this.bridgeRepository.save(bridge);
