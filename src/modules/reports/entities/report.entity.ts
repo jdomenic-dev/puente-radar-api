@@ -1,5 +1,6 @@
 import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
 import { ReportSource, ReportStatus } from '../../../common/enums/report.enum.js';
+import { LaneType } from '../../../common/enums/lane.enum.js';
 import type { Bridge } from '../../bridges/entities/bridge.entity.js';
 
 @Entity('reports')
@@ -14,8 +15,14 @@ export class Report {
   @Column({ type: 'uuid' })
   bridgeId: string;
 
-  @Column({ type: 'int' })
-  reportedWaitMinutes: number;
+  @Column({ type: 'int', nullable: true, default: null })
+  reportedWaitMinutes: number | null;
+
+  @Column({
+    type: 'enum',
+    enum: LaneType,
+  })
+  laneType: LaneType;
 
   @Column({
     type: 'enum',

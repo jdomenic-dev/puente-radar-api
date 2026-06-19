@@ -8,6 +8,7 @@ import { Report } from './entities/report.entity.js';
 import { Bridge } from '../bridges/entities/bridge.entity.js';
 import { ReportSource, ReportStatus } from '../../common/enums/report.enum.js';
 import { BridgeStatus } from '../../common/enums/bridge.enum.js';
+import { LaneType } from '../../common/enums/lane.enum.js';
 
 type MockRepository<T extends ObjectLiteral = ObjectLiteral> = Partial<Record<keyof Repository<T>, jest.Mock>>;
 
@@ -29,6 +30,7 @@ function makeBridge(overrides: Partial<Bridge> = {}): Bridge {
     trend: null,
     sortOrder: 1,
     lastUpdatedAt: null,
+    cbpPortNumber: null,
     reports: [],
     ...overrides,
   };
@@ -40,6 +42,7 @@ function makeReport(overrides: Partial<Report> = {}): Report {
     bridgeId: 'bridge-uuid-1',
     bridge: makeBridge(),
     reportedWaitMinutes: 30,
+    laneType: LaneType.General,
     source: ReportSource.User,
     lineStatus: ReportStatus.Pending,
     comment: null,
@@ -94,6 +97,7 @@ describe('ReportsService', () => {
 
       const result = await service.create({
         bridgeId: 'bridge-uuid-1',
+        laneType: LaneType.General,
         lineStatus: ReportStatus.Pending,
         reportedWaitMinutes: 30,
       });
@@ -111,21 +115,23 @@ describe('ReportsService', () => {
       expect(result).toEqual(created);
     });
 
-    it('defaults reportedWaitMinutes to 0 when not provided', async () => {
+    it('saves reportedWaitMinutes as null (not 0) when omitted', async () => {
       mockBridgesService.findOneById.mockResolvedValue(makeBridge());
-      const created = makeReport({ reportedWaitMinutes: 0 });
+      const created = makeReport({ reportedWaitMinutes: null as unknown as number });
       repo.create!.mockReturnValue(created);
       repo.save!.mockResolvedValue(created);
 
-      await service.create({ bridgeId: 'bridge-uuid-1', lineStatus: ReportStatus.Pending });
+      await service.create({ bridgeId: 'bridge-uuid-1', laneType: LaneType.General, lineStatus: ReportStatus.Pending });
 
-      expect(repo.create).toHaveBeenCalledWith(expect.objectContaining({ reportedWaitMinutes: 0 }));
+      expect(repo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ reportedWaitMinutes: null }),
+      );
     });
 
     it('throws NotFoundException when bridge is not found', async () => {
       mockBridgesService.findOneById.mockRejectedValue(new NotFoundException('Bridge not found'));
 
-      await expect(service.create({ bridgeId: 'nonexistent', lineStatus: ReportStatus.Pending })).rejects.toThrow(
+      await expect(service.create({ bridgeId: 'nonexistent', laneType: LaneType.General, lineStatus: ReportStatus.Pending })).rejects.toThrow(
         NotFoundException,
       );
 
@@ -231,6 +237,117 @@ describe('ReportsService', () => {
 
       expect(mockBridgesService.getHomeSummary).toHaveBeenCalled();
       expect(result).toEqual(summary);
+    });
+  });
+
+  // ── findUsableReports ─────────────────────────────────────────────────────
+
+  describe('findUsableReports()', () => {
+    const now = new Date('2026-06-19T12:00:00Z');
+
+    function makeUsableReport(overrides: Partial<Report> & { minutesAgo: number }): Report {
+      const { minutesAgo, ...rest } = overrides;
+      const createdAt = new Date(now.getTime() - minutesAgo * 60 * 1000);
+      return makeReport({ createdAt, lineStatus: ReportStatus.Pending, reportedWaitMinutes: 30, ...rest });
+    }
+
+    beforeEach(() => {
+      jest.useFakeTimers().setSystemTime(now);
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    it('returns weighted reports within 90 min for same bridge and laneType', async () => {
+      const reports = [
+        makeUsableReport({ minutesAgo: 10, reportedWaitMinutes: 20 }), // weight 1.0
+        makeUsableReport({ minutesAgo: 25, reportedWaitMinutes: 40 }), // weight 0.8
+      ];
+      repo.find!.mockResolvedValue(reports);
+
+      const result = await service.findUsableReports('bridge-uuid-1', LaneType.General);
+
+      // weighted mean: (20*1.0 + 40*0.8) / (1.0 + 0.8) = (20+32)/1.8 = 52/1.8 ≈ 28.89
+      expect(result.sampleSize).toBe(2);
+      expect(result.weightedMean).toBeCloseTo(28.89, 1);
+    });
+
+    it('excludes rejected reports', async () => {
+      const reports = [
+        makeUsableReport({ minutesAgo: 5, reportedWaitMinutes: 30, lineStatus: ReportStatus.Rejected }),
+        makeUsableReport({ minutesAgo: 5, reportedWaitMinutes: 60 }),
+      ];
+      repo.find!.mockResolvedValue(reports);
+
+      const result = await service.findUsableReports('bridge-uuid-1', LaneType.General);
+
+      expect(result.sampleSize).toBe(1);
+      expect(result.weightedMean).toBeCloseTo(60, 0);
+    });
+
+    it('excludes reports with null reportedWaitMinutes', async () => {
+      const reports = [
+        makeUsableReport({ minutesAgo: 5, reportedWaitMinutes: null as unknown as number }),
+        makeUsableReport({ minutesAgo: 5, reportedWaitMinutes: 45 }),
+      ];
+      repo.find!.mockResolvedValue(reports);
+
+      const result = await service.findUsableReports('bridge-uuid-1', LaneType.General);
+
+      expect(result.sampleSize).toBe(1);
+      expect(result.weightedMean).toBeCloseTo(45, 0);
+    });
+
+    it('excludes reports older than 90 minutes', async () => {
+      const reports = [
+        makeUsableReport({ minutesAgo: 95, reportedWaitMinutes: 50 }), // excluded
+        makeUsableReport({ minutesAgo: 89, reportedWaitMinutes: 20 }), // weight 0.3
+      ];
+      repo.find!.mockResolvedValue(reports);
+
+      const result = await service.findUsableReports('bridge-uuid-1', LaneType.General);
+
+      expect(result.sampleSize).toBe(1);
+      expect(result.weightedMean).toBeCloseTo(20, 0);
+    });
+
+    it('excludes reports with wait minutes outside 0-360 range', async () => {
+      const reports = [
+        makeUsableReport({ minutesAgo: 5, reportedWaitMinutes: 361 }), // excluded
+        makeUsableReport({ minutesAgo: 5, reportedWaitMinutes: 0 }),   // valid
+      ];
+      repo.find!.mockResolvedValue(reports);
+
+      const result = await service.findUsableReports('bridge-uuid-1', LaneType.General);
+
+      expect(result.sampleSize).toBe(1);
+      expect(result.weightedMean).toBeCloseTo(0, 0);
+    });
+
+    it('applies correct recency weights: 0-15min=1.0, 16-30=0.8, 31-60=0.5, 61-90=0.3', async () => {
+      const reports = [
+        makeUsableReport({ minutesAgo: 10, reportedWaitMinutes: 100 }), // weight 1.0
+        makeUsableReport({ minutesAgo: 20, reportedWaitMinutes: 100 }), // weight 0.8
+        makeUsableReport({ minutesAgo: 45, reportedWaitMinutes: 100 }), // weight 0.5
+        makeUsableReport({ minutesAgo: 75, reportedWaitMinutes: 100 }), // weight 0.3
+      ];
+      repo.find!.mockResolvedValue(reports);
+
+      const result = await service.findUsableReports('bridge-uuid-1', LaneType.General);
+
+      // All same value (100), so weighted mean = 100 regardless of weights
+      expect(result.sampleSize).toBe(4);
+      expect(result.weightedMean).toBeCloseTo(100, 0);
+    });
+
+    it('returns sampleSize 0 and weightedMean null when no usable reports', async () => {
+      repo.find!.mockResolvedValue([]);
+
+      const result = await service.findUsableReports('bridge-uuid-1', LaneType.General);
+
+      expect(result.sampleSize).toBe(0);
+      expect(result.weightedMean).toBeNull();
     });
   });
 });
