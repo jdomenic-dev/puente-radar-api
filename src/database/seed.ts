@@ -9,25 +9,43 @@ const SEED_BRIDGES: CreateBridgeDto[] = [
     name: 'Puente Libre / Córdova-Américas',
     slug: 'puente-libre',
     status: BridgeStatus.Low,
+    cbpPortNumber: 240201,
     sortOrder: 1,
   },
   {
     name: 'Puente Santa Fe',
     slug: 'puente-santa-fe',
     status: BridgeStatus.Low,
+    cbpPortNumber: 240202,
     sortOrder: 2,
   },
   {
     name: 'Puente Zaragoza / Ysleta',
     slug: 'puente-zaragoza',
     status: BridgeStatus.Low,
+    cbpPortNumber: 240203,
     sortOrder: 3,
   },
   {
     name: 'Puente Guadalupe-Tornillo',
     slug: 'puente-guadalupe-tornillo',
     status: BridgeStatus.Low,
+    cbpPortNumber: 240401,
     sortOrder: 4,
+  },
+  {
+    name: 'Puente Stanton / Lerdo',
+    slug: 'puente-stanton-lerdo',
+    status: BridgeStatus.Low,
+    cbpPortNumber: 240204,
+    sortOrder: 5,
+  },
+  {
+    name: 'Puente Santa Teresa',
+    slug: 'puente-santa-teresa',
+    status: BridgeStatus.Low,
+    cbpPortNumber: 240801,
+    sortOrder: 6,
   },
 ];
 
