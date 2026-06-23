@@ -586,9 +586,9 @@ describe('CbpAdapter — TTL / fresh snapshots', () => {
 describe('CbpAdapter — stale fallback on fetch failure', () => {
   it('B2.2-g: fetch throws + prior snapshot exists → returns snapshot with sourceStale true, no throw', async () => {
     const staleFetchedAt = new Date(FIXED_NOW.getTime() - 20 * 60_000);
-    const staleRows = [
-      { bridgeId: 'bridge-uuid-1', laneType: LaneType.General, fetchedAt: staleFetchedAt },
-      { bridgeId: 'bridge-uuid-1', laneType: LaneType.Sentri, fetchedAt: staleFetchedAt },
+    const staleRows: SnapshotRow[] = [
+      { bridgeId: 'bridge-uuid-1', laneType: LaneType.General, fetchedAt: staleFetchedAt, delayMinutes: 10, lanesOpen: 3, operationalStatus: 'delay', isOpen: true, sourceUpdateTimeRaw: '' },
+      { bridgeId: 'bridge-uuid-1', laneType: LaneType.Sentri, fetchedAt: staleFetchedAt, delayMinutes: 5, lanesOpen: 2, operationalStatus: 'delay', isOpen: true, sourceUpdateTimeRaw: '' },
     ];
     const repo = makeMockRepo(staleRows);
     const adapter = makeAdapter(makeFailingFetchMock(), repo, { ttlMinutes: 15 });

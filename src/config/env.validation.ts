@@ -57,6 +57,34 @@ class EnvironmentVariables {
   @IsString()
   @IsOptional()
   CORS_ORIGIN: string = '*';
+
+  // ── CBP Adapter configuration ──────────────────────────────────────────────
+
+  /**
+   * Full URL to the CBP wait-times endpoint.
+   * Default: https://bwt.cbp.gov/api/waittimes
+   */
+  @IsString()
+  @IsOptional()
+  CBP_BASE_URL: string = 'https://bwt.cbp.gov/api/waittimes';
+
+  /**
+   * Abort timeout in milliseconds for CBP API requests.
+   * Default: 4000 (4 seconds).
+   */
+  @IsInt()
+  @Min(100)
+  @IsOptional()
+  CBP_TIMEOUT_MS: number = 4000;
+
+  /**
+   * TTL in minutes before a persisted CBP snapshot is considered stale.
+   * Default: 15 minutes.
+   */
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  CBP_TTL_MINUTES: number = 15;
 }
 
 export function validate(config: Record<string, unknown>) {

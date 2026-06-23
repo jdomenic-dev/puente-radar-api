@@ -5,6 +5,10 @@
  * No NestJS decorators, no repositories, no network calls.
  * This makes it trivially testable and injectable into Slice C.
  *
+ * Exports:
+ *   - calculateEstimate (pure function) — used directly in tests and by EstimateCalculator class.
+ *   - EstimateCalculator (@Injectable class) — thin NestJS wrapper; inject via DI into EstimatesService.
+ *
  * Design reference: design.md rev2 — "Admin-adjusted component",
  * "Cold-start & Confidence", "Interfaces / Contracts".
  *
@@ -20,6 +24,8 @@
  *   This makes the blend community-dominant while keeping the sum = 1.
  *   The -20 confidence penalty is ALSO applied.
  */
+
+import { Injectable } from '@nestjs/common';
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -101,7 +107,7 @@ function isAdminActive(adminAdjustmentMinutes: number | null | undefined): admin
 }
 
 // ---------------------------------------------------------------------------
-// Main calculator
+// Main calculator (pure function)
 // ---------------------------------------------------------------------------
 
 export function calculateEstimate(input: CalculatorInput): CalculatorOutput {
@@ -225,4 +231,19 @@ export function calculateEstimate(input: CalculatorInput): CalculatorOutput {
     confidence: computeConfidenceLabel(score),
     sourcesUsed,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Injectable wrapper (NestJS DI)
+// ---------------------------------------------------------------------------
+
+/**
+ * Thin @Injectable wrapper around the pure calculateEstimate function.
+ * Provides NestJS-compatible DI for EstimatesService without adding any I/O.
+ */
+@Injectable()
+export class EstimateCalculator {
+  calculate(input: CalculatorInput): CalculatorOutput {
+    return calculateEstimate(input);
+  }
 }
