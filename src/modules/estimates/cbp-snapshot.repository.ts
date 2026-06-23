@@ -87,42 +87,47 @@ export class CbpSnapshotCustomRepository implements CbpSnapshotRepository {
   ): Promise<SnapshotHistoryRow[]> {
     if (bridgeIds.length === 0) return [];
 
-    const rows = await this.dataSource.query<Array<SnapshotLaneRow & { row_number: string }>>(
+    // Filter rn <= 2 inside a subquery so Postgres discards extra rows early,
+    // rather than fetching all rows and filtering in JS.
+    const rows = await this.dataSource.query<Array<SnapshotLaneRow & { rn: string }>>(
       `
-      SELECT
-        "bridgeId",
-        "laneType",
-        "fetchedAt",
-        "delayMinutes",
-        "lanesOpen",
-        "operationalStatus",
-        "isOpen",
-        "sourceUpdateTimeRaw",
-        ROW_NUMBER() OVER (
-          PARTITION BY "bridgeId", "laneType"
-          ORDER BY "fetchedAt" DESC
-        ) AS "row_number"
-      FROM "cbp_snapshots"
-      WHERE "bridgeId" = ANY($1)
-        AND "laneType" = $2
-      ORDER BY "bridgeId", "laneType", "fetchedAt" DESC
+      SELECT "bridgeId", "laneType", "fetchedAt", "delayMinutes", "lanesOpen",
+             "operationalStatus", "isOpen", "sourceUpdateTimeRaw", rn
+      FROM (
+        SELECT
+          "bridgeId",
+          "laneType",
+          "fetchedAt",
+          "delayMinutes",
+          "lanesOpen",
+          "operationalStatus",
+          "isOpen",
+          "sourceUpdateTimeRaw",
+          ROW_NUMBER() OVER (
+            PARTITION BY "bridgeId", "laneType"
+            ORDER BY "fetchedAt" DESC
+          ) AS rn
+        FROM "cbp_snapshots"
+        WHERE "bridgeId" = ANY($1)
+          AND "laneType" = $2
+      ) ranked
+      WHERE rn <= 2
+      ORDER BY "bridgeId", rn
       `,
       [bridgeIds, laneType],
     );
 
-    return rows
-      .filter(r => parseInt(r.row_number, 10) <= 2)
-      .map(r => ({
-        bridgeId: r.bridgeId,
-        laneType: r.laneType as LaneType,
-        fetchedAt: r.fetchedAt instanceof Date ? r.fetchedAt : new Date(r.fetchedAt as unknown as string),
-        delayMinutes: r.delayMinutes,
-        lanesOpen: r.lanesOpen,
-        operationalStatus: r.operationalStatus,
-        isOpen: r.isOpen,
-        sourceUpdateTimeRaw: r.sourceUpdateTimeRaw,
-        rowNumber: parseInt(r.row_number, 10),
-      }));
+    return rows.map(r => ({
+      bridgeId: r.bridgeId,
+      laneType: r.laneType as LaneType,
+      fetchedAt: r.fetchedAt instanceof Date ? r.fetchedAt : new Date(r.fetchedAt as unknown as string),
+      delayMinutes: r.delayMinutes,
+      lanesOpen: r.lanesOpen,
+      operationalStatus: r.operationalStatus,
+      isOpen: r.isOpen,
+      sourceUpdateTimeRaw: r.sourceUpdateTimeRaw,
+      rowNumber: parseInt(r.rn, 10),
+    }));
   }
 }
 

@@ -171,20 +171,25 @@ describe('EstimatesService', () => {
   });
 
   // ── C.1: One CBP fetch per request ─────────────────────────────────────────
+  // Uses TWO bridges so a per-bridge fetch regression would be caught.
 
   describe('one-fetch-cycle guarantee', () => {
-    it('calls cbpAdapter.getLanes exactly once per getEstimates call', async () => {
-      mockBridgesService.findActive.mockResolvedValue([BRIDGE_A]);
+    it('calls cbpAdapter.getLanes exactly once even with multiple bridges', async () => {
+      mockBridgesService.findActive.mockResolvedValue([BRIDGE_A, BRIDGE_B]);
       mockCbpAdapter.getLanes.mockResolvedValue({
-        lanes: [makeLane(PORT_A, LaneType.General, 30)],
+        lanes: [
+          makeLane(PORT_A, LaneType.General, 30),
+          makeLane(PORT_B, LaneType.General, 45),
+        ],
         sourceStale: false,
       } satisfies GetLanesResult);
+      // findUsableReports called once per bridge
       mockReportsService.findUsableReports.mockResolvedValue({ sampleSize: 0, weightedMean: null });
       mockAdjustmentRepository.find.mockResolvedValue([]);
-      mockSnapshotRepository.findLatestPerBridgeLane.mockResolvedValue([]);
 
       await service.getEstimates(LaneType.General);
 
+      // Regardless of bridge count, getLanes is called EXACTLY ONCE per request
       expect(mockCbpAdapter.getLanes).toHaveBeenCalledTimes(1);
     });
   });
@@ -209,13 +214,20 @@ describe('EstimatesService', () => {
     });
   });
 
-  // ── C.3: Best option excludes low-confidence ────────────────────────────────
+  // ── C.3: Best option selection — spec R3 ───────────────────────────────────
+  //
+  // Confidence is driven by the REAL calculator penalty rules (no stubbing).
+  // LOW  (score ≤ 49): cbpStale(-20) + sourceStale(-15) + sample1(-15) + disagreement>30(-20) = -70 → 30
+  // MEDIUM (score 50-79): CBP-only cold start → min(100, 70) = 70 (CBP-only ceiling)
+  //
+  // To force cbpStale=true: mock findLatestPerBridgeLane to return a snapshot
+  // with fetchedAt more than TTL (15 min) in the past.
 
   describe('best option selection', () => {
-    it('marks the lowest-wait NOT-low-confidence entry as best option', async () => {
-      // Bridge A: wait=20, score=70 (CBP-only, MEDIUM)
-      // Bridge B: wait=50, score=70 (CBP-only, MEDIUM)
-      // Best = Bridge A (lower wait, both MEDIUM)
+    it('marks the lowest-wait NOT-low-confidence entry as best option (both MEDIUM)', async () => {
+      // Both bridges CBP-only cold start → score=70 → MEDIUM.
+      // Bridge A: wait=20 (lower). Bridge B: wait=50.
+      // Expected: Bridge A wins (lower wait, both non-low-confidence), bestOptionFallback=false.
       mockBridgesService.findActive.mockResolvedValue([BRIDGE_A, BRIDGE_B]);
       mockCbpAdapter.getLanes.mockResolvedValue({
         lanes: [
@@ -226,7 +238,6 @@ describe('EstimatesService', () => {
       } satisfies GetLanesResult);
       mockReportsService.findUsableReports.mockResolvedValue({ sampleSize: 0, weightedMean: null });
       mockAdjustmentRepository.find.mockResolvedValue([]);
-      mockSnapshotRepository.findLatestPerBridgeLane.mockResolvedValue([]);
 
       const results = await service.getEstimates(LaneType.General);
 
@@ -236,99 +247,76 @@ describe('EstimatesService', () => {
       expect(best!.bestOptionFallback).toBe(false);
     });
 
-    it('skips low-confidence entries when selecting best option', async () => {
-      // Bridge A: stale CBP (-20) + sourceStale (-15) = 65 → MEDIUM → eligible
-      // Bridge B: fresh CBP, wait=10 (lower), score=70 CBP-only ceiling → MEDIUM → eligible
-      // MEDIUM is NOT low confidence, so Bridge B (lower wait) wins
+    it('R3: skips the lowest-wait LOW-confidence entry and picks the higher-wait MEDIUM entry', async () => {
+      // This is the spec R3 scenario: "best option excludes low confidence".
+      //
+      // Bridge X (BRIDGE_A): official delay=10 (LOWEST wait), but receives all four
+      //   confidence penalties → score=30 → LOW confidence.
+      //   Penalty breakdown:
+      //     cbpStale=true     → -20  (stale snapshot for bridge A in findLatestPerBridgeLane)
+      //     sourceStale=true  → -15  (from getLanes result)
+      //     sampleSize=1      → -15  (small-sample penalty)
+      //     |10 - 55| = 45 > 30 → disagreement → -20
+      //   Total: 100 - 20 - 15 - 15 - 20 = 30 → LOW
+      //
+      // Bridge Y (BRIDGE_B): official delay=40 (higher wait), fresh snapshot, no community.
+      //   cbpStale=false (fresh snapshot), sourceStale=true(-15), no community → CBP-only ceiling.
+      //   Score: 100 - 15(sourceStale) = 85 → min(85, 70) = 70 → MEDIUM
+      //   (CBP-only ceiling applies because sampleSize=0)
+      //
+      // Expected: Bridge Y (wait=40, MEDIUM) is isBestOption=true, bestOptionFallback=false.
+      //           Bridge X (wait=10, LOW) is isBestOption=false — excluded despite lowest wait.
+      //
+      // Anti-tautology proof: if _assignBestOption() chose the lowest wait regardless of
+      // confidence, Bridge X would win and this test would FAIL.
+      const oldFetchedAt = new Date('2025-06-20T09:00:00.000Z'); // 1 year ago → stale
+      const freshFetchedAt = new Date(); // right now → fresh (age < 15 min TTL)
+
       mockBridgesService.findActive.mockResolvedValue([BRIDGE_A, BRIDGE_B]);
       mockCbpAdapter.getLanes.mockResolvedValue({
         lanes: [
-          makeLane(PORT_A, LaneType.General, 40), // higher wait
-          makeLane(PORT_B, LaneType.General, 10), // lower wait
+          makeLane(PORT_A, LaneType.General, 10),  // BRIDGE_A: lowest wait
+          makeLane(PORT_B, LaneType.General, 40),  // BRIDGE_B: higher wait
         ],
-        sourceStale: false,
+        sourceStale: true, // -15 for all bridges
       } satisfies GetLanesResult);
-      mockReportsService.findUsableReports.mockResolvedValue({ sampleSize: 0, weightedMean: null });
+
+      // Bridge A: community sampleSize=1 (-15) with value=55 → |10-55|=45 >30 → disagreement (-20)
+      // Bridge B: no community (sampleSize=0) → CBP-only ceiling applied
+      mockReportsService.findUsableReports
+        .mockResolvedValueOnce({ sampleSize: 1, weightedMean: 55 }) // BRIDGE_A (called first)
+        .mockResolvedValueOnce({ sampleSize: 0, weightedMean: null }); // BRIDGE_B
+
       mockAdjustmentRepository.find.mockResolvedValue([]);
-      mockSnapshotRepository.findLatestPerBridgeLane.mockResolvedValue([]);
+
+      // Snapshot for BRIDGE_A is OLD → cbpStale=true (-20)
+      // Snapshot for BRIDGE_B is FRESH → cbpStale=false (no penalty)
+      mockSnapshotRepository.findLatestPerBridgeLane.mockResolvedValue([
+        {
+          bridgeId: BRIDGE_A_ID, laneType: LaneType.General,
+          fetchedAt: oldFetchedAt, // stale
+          delayMinutes: 10, lanesOpen: 3, operationalStatus: 'delay', isOpen: true, sourceUpdateTimeRaw: '',
+        },
+        {
+          bridgeId: BRIDGE_B_ID, laneType: LaneType.General,
+          fetchedAt: freshFetchedAt, // fresh
+          delayMinutes: 40, lanesOpen: 3, operationalStatus: 'delay', isOpen: true, sourceUpdateTimeRaw: '',
+        },
+      ]);
 
       const results = await service.getEstimates(LaneType.General);
 
-      const best = results.find(r => r.isBestOption);
-      expect(best).toBeDefined();
-      expect(best!.bridgeId).toBe(BRIDGE_B_ID); // lower wait wins
-      expect(best!.bestOptionFallback).toBe(false);
-    });
+      const bridgeA = results.find(r => r.bridgeId === BRIDGE_A_ID)!;
+      const bridgeB = results.find(r => r.bridgeId === BRIDGE_B_ID)!;
 
-    it('falls back to bestOptionFallback=true when ALL available are low-confidence', async () => {
-      // Both bridges: cbpStale=true, sourceStale=true → 100-20-15=65 → wait... cbp-only ceiling=70 → min(65,70)=65 → MEDIUM
-      // To get LOW confidence we need score ≤49:
-      // cbpStale + sourceStale + smallSample(1) + disagreement > 30 = -20 -15 -15 -20 = -70 → 30 → LOW ✓
-      // Force both to low confidence via lots of penalties:
-      // Use community sample=1 (-15) and disagreement>30: official=10, community=50 (diff=40>30, -20)
-      // stale (-20) + sourceStale (-15) + sample1 (-15) + disagreement (-20) = -70 → score=30 → low (NO cbp ceiling when community present)
-      mockBridgesService.findActive.mockResolvedValue([BRIDGE_A, BRIDGE_B]);
-      mockCbpAdapter.getLanes.mockResolvedValue({
-        lanes: [
-          makeLane(PORT_A, LaneType.General, 10),
-          makeLane(PORT_B, LaneType.General, 10),
-        ],
-        sourceStale: true, // sourceStale penalizes
-      } satisfies GetLanesResult);
-      mockReportsService.findUsableReports.mockResolvedValue({
-        sampleSize: 1,     // small sample -15
-        weightedMean: 50,  // disagreement = |10-50|=40 > 30 → -20
-      });
-      mockAdjustmentRepository.find.mockResolvedValue([]);
-      mockSnapshotRepository.findLatestPerBridgeLane.mockResolvedValue([]);
+      // Verify computed confidences are what the test is designed around
+      expect(bridgeA.confidence).toBe('low');    // score=30: 100-20-15-15-20
+      expect(bridgeB.confidence).toBe('medium'); // score=70: min(100-15, 70) CBP-only ceiling
 
-      // Also make cbpStale=true by sending stale snapshot data:
-      // We use sourceStale=true from getLanes. cbpStale comes from snapshot age check — 
-      // let's mock no prev snapshot so cbpStale=false, and use sourceStale=true + sample+disagreement
-      // sourceStale(-15) + sample1(-15) + disagreement(-20) = -50 → 50 → MEDIUM → still eligible :(
-      // Need cbpStale too: the service sets cbpStale based on snapshot age; no prior snapshot → cbpStale=false
-      // Alternate approach: force all lanes closed so unavailable; then fallback path kicks in
-      // Actually: closed lane (no official), community sample=0 → noData unavailable → isBestOption=false
-      // That's the unavailable case, not the low-confidence fallback.
-      // Re-think: to get score≤49: need -51 or more.
-      // With sourceStale(-15) + sample1(-15) + disagreement(-20) = -50 → 50 (MEDIUM, NOT low).
-      // With sourceStale(-15) + sample2(-15) + disagreement(-20) + cbpStale(-20) = -70 → 30 (LOW) ✓
-      // But cbpStale comes from snapshot fetchedAt age > TTL.
-      // EstimatesService should set cbpStale=true when the snapshot for that bridge+lane is old enough.
-      // OR: we simply need to test best-option-fallback at the unit level with full control.
-      // Let's instead test it by providing lanes with delay=null (unavailable) for both bridges,
-      // then one closed bridge and one with noData — neither can be best option.
-      // No wait: the spec says "Unavailable lanes never become best option."
-      // The fallback is "lowest available regardless of confidence" — it fires when ALL AVAILABLE are low.
-      // 
-      // Better setup: mock the calculator output directly by giving inputs that produce low confidence:
-      // We'll use cbpStale=true by providing old snapshot data.
-      // Simplest: bridge has NO cbpPortNumber → community-only → no official, community present
-      // community-only path: base = community.value; cbp-only ceiling NOT applied; score: sourceStale(-15) + sample1(-15) = -30 → 70 (MEDIUM)
-      // Still MEDIUM. Need more penalties.
-      //
-      // SIMPLEST solution: control service inputs more precisely via no-cbp-port bridges with tiny community:
-      // Bridge has no cbpPortNumber → officialUsable=false, community sample=1 → score: 100-15=85 → HIGH
-      // None of these easily produce LOW with current test inputs.
-      //
-      // The correct approach: wire a snapshot that is STALE (fetchedAt > TTL ago) for the source.
-      // But the service relies on getLanes result. sourceStale=true triggers -15.
-      // Let's use all penalties possible:
-      // sourceStale=true(-15) + sample1(-15) + disagreement(-20) = -50 → 50 = boundary of MEDIUM (not LOW)
-      //
-      // The only way to get LOW in unit tests without a real DB:
-      // Official is closed (-25) + sourceStale (-15) + ... 
-      // Actually: closed lane (-25) + sourceStale (-15) + no community → score=60 → MEDIUM (since cbp-only ceil=70 → min(60,70)=60)
-      // Official closed + community=0: neither source usable → unavailable, not a best-option candidate.
-      //
-      // Best unit-testable path: force cbpStale explicitly.
-      // The service must compute cbpStale from the snapshot's fetchedAt vs TTL.
-      // We can mock snapshotRepository.findLatestPerBridgeLane to return OLD snapshots.
-      // If snapshot is old: cbpStale=true → -20.
-      // With cbpStale(-20) + sourceStale(-15) + sample1(-15) + disagreement(-20) = -70 → 30 → LOW ✓
-      // 
-      // Let's redo this test with proper snapshot mocking.
-      expect(true).toBe(true); // placeholder — real test below
+      // R3 assertion: low-confidence lowest is NOT chosen; medium-confidence higher-wait wins
+      expect(bridgeA.isBestOption).toBe(false);
+      expect(bridgeB.isBestOption).toBe(true);
+      expect(bridgeB.bestOptionFallback).toBe(false);
     });
 
     it('selects best option fallback when all available lanes are low-confidence', async () => {
