@@ -217,8 +217,20 @@ const PORT_TO_BRIDGE: Map<number, string> = new Map([
 
 const FIXED_NOW = new Date('2026-06-19T13:00:00.000Z');
 
+/** Full snapshot row shape — mirrors every field _snapshotsToNormalizedLanes reads. */
+export interface SnapshotRow {
+  bridgeId: string;
+  laneType: LaneType;
+  fetchedAt: Date;
+  delayMinutes: number | null;
+  lanesOpen: number | null;
+  operationalStatus: string | null;
+  isOpen: boolean;
+  sourceUpdateTimeRaw: string | null;
+}
+
 /** Build a minimal mock snapshot repository. */
-function makeMockRepo(latestSnapshotRows: Array<{ bridgeId: string; laneType: LaneType; fetchedAt: Date }> = []) {
+function makeMockRepo(latestSnapshotRows: SnapshotRow[] = []) {
   return {
     save: jest.fn().mockResolvedValue(undefined),
     findLatestPerBridgeLane: jest.fn().mockResolvedValue(latestSnapshotRows),
@@ -513,16 +525,25 @@ describe('CbpAdapter — persistence on successful fetch', () => {
 // ---------------------------------------------------------------------------
 
 describe('CbpAdapter — TTL / fresh snapshots', () => {
-  it('B2.2-e: if latest snapshots are within TTL, fetch is NOT called', async () => {
-    // Snapshots fetched 5 minutes ago (TTL = 15 min → still fresh)
+  it('B2.2-e: full-coverage fresh cache (6 bridges × 4 lanes = 24 rows within TTL) → fetch NOT called', async () => {
+    // Full coverage required: every bridge in PORT_TO_BRIDGE × every LaneType.
+    // PORT_TO_BRIDGE has 6 bridges → 6 × 4 = 24 rows needed.
     const freshFetchedAt = new Date(FIXED_NOW.getTime() - 5 * 60_000);
-    const freshRows = [
-      { bridgeId: 'bridge-uuid-1', laneType: LaneType.General, fetchedAt: freshFetchedAt },
-      { bridgeId: 'bridge-uuid-1', laneType: LaneType.Sentri, fetchedAt: freshFetchedAt },
-      { bridgeId: 'bridge-uuid-1', laneType: LaneType.ReadyLane, fetchedAt: freshFetchedAt },
-      { bridgeId: 'bridge-uuid-1', laneType: LaneType.Pedestrian, fetchedAt: freshFetchedAt },
-    ];
-    const repo = makeMockRepo(freshRows);
+    const allBridgeIds = ['bridge-uuid-1', 'bridge-uuid-2', 'bridge-uuid-3', 'bridge-uuid-4', 'bridge-uuid-5', 'bridge-uuid-6'];
+    const allLanes = [LaneType.General, LaneType.Sentri, LaneType.ReadyLane, LaneType.Pedestrian];
+    const fullRows: SnapshotRow[] = allBridgeIds.flatMap(bridgeId =>
+      allLanes.map(laneType => ({
+        bridgeId,
+        laneType,
+        fetchedAt: freshFetchedAt,
+        delayMinutes: 10,
+        lanesOpen: 2,
+        operationalStatus: 'delay',
+        isOpen: true,
+        sourceUpdateTimeRaw: '',
+      })),
+    );
+    const repo = makeMockRepo(fullRows);
     const fetchFn = makeFetchMock();
     const adapter = makeAdapter(fetchFn, repo, { ttlMinutes: 15 });
 
@@ -531,13 +552,24 @@ describe('CbpAdapter — TTL / fresh snapshots', () => {
     expect(fetchFn).not.toHaveBeenCalled();
   });
 
-  it('B2.2-f: if latest snapshots are stale (>TTL), fetch IS called', async () => {
-    // Snapshots fetched 20 minutes ago (TTL = 15 min → stale)
+  it('B2.2-f: full-coverage cache but ALL stale (>TTL) → fetch IS called', async () => {
+    // All 24 rows present but all stale → refresh triggered
     const staleFetchedAt = new Date(FIXED_NOW.getTime() - 20 * 60_000);
-    const staleRows = [
-      { bridgeId: 'bridge-uuid-1', laneType: LaneType.General, fetchedAt: staleFetchedAt },
-    ];
-    const repo = makeMockRepo(staleRows);
+    const allBridgeIds = ['bridge-uuid-1', 'bridge-uuid-2', 'bridge-uuid-3', 'bridge-uuid-4', 'bridge-uuid-5', 'bridge-uuid-6'];
+    const allLanes = [LaneType.General, LaneType.Sentri, LaneType.ReadyLane, LaneType.Pedestrian];
+    const staleFullRows: SnapshotRow[] = allBridgeIds.flatMap(bridgeId =>
+      allLanes.map(laneType => ({
+        bridgeId,
+        laneType,
+        fetchedAt: staleFetchedAt,
+        delayMinutes: 5,
+        lanesOpen: 1,
+        operationalStatus: 'no delay',
+        isOpen: true,
+        sourceUpdateTimeRaw: '',
+      })),
+    );
+    const repo = makeMockRepo(staleFullRows);
     const fetchFn = makeFetchMock();
     const adapter = makeAdapter(fetchFn, repo, { ttlMinutes: 15 });
 
@@ -635,5 +667,242 @@ describe('CbpAdapter — interface compliance', () => {
     const repo = makeMockRepo();
     const adapter: WaitTimeSourceAdapter = makeAdapter(makeFetchMock(), repo);
     expect(typeof adapter.fetchAll).toBe('function');
+  });
+});
+
+// ===========================================================================
+// GATE-FIX 1 — Stale-fallback must preserve real snapshot field values
+// ===========================================================================
+
+describe('CbpAdapter — stale fallback preserves snapshot values (GATE-FIX 1)', () => {
+  it('GF1-a: returned lanes carry actual delayMinutes/lanesOpen/operationalStatus/isOpen/sourceUpdateTimeRaw from snapshot', async () => {
+    const staleFetchedAt = new Date(FIXED_NOW.getTime() - 20 * 60_000);
+    const staleRows: SnapshotRow[] = [
+      {
+        bridgeId: 'bridge-uuid-1',
+        laneType: LaneType.General,
+        fetchedAt: staleFetchedAt,
+        delayMinutes: 42,
+        lanesOpen: 3,
+        operationalStatus: 'delay',
+        isOpen: true,
+        sourceUpdateTimeRaw: 'At 1:00 pm EDT',
+      },
+    ];
+    const repo = makeMockRepo(staleRows);
+    const adapter = makeAdapter(makeFailingFetchMock(), repo, { ttlMinutes: 15 });
+
+    const result = await adapter.getLanes(PORT_TO_BRIDGE, FIXED_NOW);
+
+    expect(result.sourceStale).toBe(true);
+    expect(result.lanes).toHaveLength(1);
+
+    const lane = result.lanes[0];
+    expect(lane.delayMinutes).toBe(42);           // NOT null — must come from snapshot
+    expect(lane.lanesOpen).toBe(3);               // NOT null
+    expect(lane.operationalStatus).toBe('delay'); // NOT ''
+    expect(lane.isOpen).toBe(true);               // NOT false (default)
+    expect(lane.sourceUpdateTimeRaw).toBe('At 1:00 pm EDT'); // NOT ''
+    expect(lane.fetchedAt).toEqual(staleFetchedAt);
+  });
+
+  it('GF1-b: closed snapshot (isOpen=false) preserved as-is, not defaulted to false by coincidence', async () => {
+    // This test is structurally distinct: isOpen comes from the snapshot (false),
+    // NOT from the default. We verify by also checking other non-default fields.
+    const staleFetchedAt = new Date(FIXED_NOW.getTime() - 25 * 60_000);
+    const staleRows: SnapshotRow[] = [
+      {
+        bridgeId: 'bridge-uuid-2',
+        laneType: LaneType.Pedestrian,
+        fetchedAt: staleFetchedAt,
+        delayMinutes: null,
+        lanesOpen: null,
+        operationalStatus: 'Lanes Closed',
+        isOpen: false,
+        sourceUpdateTimeRaw: '',
+      },
+    ];
+    const repo = makeMockRepo(staleRows);
+    const adapter = makeAdapter(makeFailingFetchMock(), repo, { ttlMinutes: 15 });
+
+    const result = await adapter.getLanes(PORT_TO_BRIDGE, FIXED_NOW);
+
+    expect(result.sourceStale).toBe(true);
+    const lane = result.lanes.find(l => l.laneType === LaneType.Pedestrian);
+    expect(lane?.operationalStatus).toBe('Lanes Closed'); // proves real value, not default ''
+    expect(lane?.isOpen).toBe(false);
+  });
+});
+
+// ===========================================================================
+// GATE-FIX 2 — Partial cache must NOT suppress refresh
+// ===========================================================================
+
+describe('CbpAdapter — partial cache triggers refresh (GATE-FIX 2)', () => {
+  it('GF2-a: cache with only one bridge while map has multiple → fetch IS attempted', async () => {
+    // PORT_TO_BRIDGE has 6 bridges (bridge-uuid-1..6), expected = 6×4 = 24 combos.
+    // Cache has only 4 rows for bridge-uuid-1 → partial → must attempt refresh.
+    const freshFetchedAt = new Date(FIXED_NOW.getTime() - 5 * 60_000); // within TTL
+    const partialRows: SnapshotRow[] = [
+      { bridgeId: 'bridge-uuid-1', laneType: LaneType.General,    fetchedAt: freshFetchedAt, delayMinutes: 10, lanesOpen: 5, operationalStatus: 'delay', isOpen: true,  sourceUpdateTimeRaw: '' },
+      { bridgeId: 'bridge-uuid-1', laneType: LaneType.Sentri,     fetchedAt: freshFetchedAt, delayMinutes: null, lanesOpen: 2, operationalStatus: 'no delay', isOpen: true, sourceUpdateTimeRaw: '' },
+      { bridgeId: 'bridge-uuid-1', laneType: LaneType.ReadyLane,  fetchedAt: freshFetchedAt, delayMinutes: null, lanesOpen: null, operationalStatus: 'no delay', isOpen: true, sourceUpdateTimeRaw: '' },
+      { bridgeId: 'bridge-uuid-1', laneType: LaneType.Pedestrian, fetchedAt: freshFetchedAt, delayMinutes: null, lanesOpen: null, operationalStatus: 'no delay', isOpen: true, sourceUpdateTimeRaw: '' },
+    ];
+    const repo = makeMockRepo(partialRows);
+    const fetchFn = makeFetchMock();
+    const adapter = makeAdapter(fetchFn, repo, { ttlMinutes: 15 });
+
+    await adapter.getLanes(PORT_TO_BRIDGE, FIXED_NOW);
+
+    // Must have attempted a refresh because coverage is incomplete
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+  });
+
+  it('GF2-b: full coverage (all bridge×lane combos for portToBridgeMap) + all fresh → fetch NOT called', async () => {
+    // PORT_TO_BRIDGE = 6 bridges × 4 lanes = 24 expected combos.
+    const freshFetchedAt = new Date(FIXED_NOW.getTime() - 5 * 60_000);
+    const allBridgeIds = ['bridge-uuid-1', 'bridge-uuid-2', 'bridge-uuid-3', 'bridge-uuid-4', 'bridge-uuid-5', 'bridge-uuid-6'];
+    const allLaneTypes = [LaneType.General, LaneType.Sentri, LaneType.ReadyLane, LaneType.Pedestrian];
+    const fullRows: SnapshotRow[] = allBridgeIds.flatMap(bridgeId =>
+      allLaneTypes.map(laneType => ({
+        bridgeId,
+        laneType,
+        fetchedAt: freshFetchedAt,
+        delayMinutes: 10,
+        lanesOpen: 2,
+        operationalStatus: 'delay',
+        isOpen: true,
+        sourceUpdateTimeRaw: '',
+      })),
+    );
+
+    const repo = makeMockRepo(fullRows);
+    const fetchFn = makeFetchMock();
+    const adapter = makeAdapter(fetchFn, repo, { ttlMinutes: 15 });
+
+    await adapter.getLanes(PORT_TO_BRIDGE, FIXED_NOW);
+
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
+});
+
+// ===========================================================================
+// WARNING 5 — null/undefined delay_minutes and lanes_open (not just ""/"N/A")
+// ===========================================================================
+
+describe('CbpAdapter — null/undefined field parsing (WARNING 5)', () => {
+  it('W5-a: delay_minutes literally null in API → delayMinutes null', async () => {
+    const portWithNullDelay: CbpApiPort[] = [
+      {
+        port_number: '240201',
+        border: 'Mexican Border',
+        port_name: 'El Paso',
+        crossing_name: 'BOTA',
+        hours: '24/7',
+        date: '6/19/2026',
+        time: '13:00:00',
+        port_status: 'Open',
+        passenger_vehicle_lanes: {
+          standard_lanes: {
+            operational_status: 'no delay',
+            update_time: '',
+            delay_minutes: null as unknown as string, // literal null from API
+            lanes_open: '3',
+          },
+          NEXUS_SENTRI_lanes: undefined,
+          ready_lanes: undefined,
+        },
+        pedestrian_lanes: { standard_lanes: undefined },
+      },
+    ];
+    const repo = makeMockRepo();
+    const adapter = makeAdapter(jest.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve(portWithNullDelay) }), repo);
+    const lanes = await adapter.fetchAll(PORT_TO_BRIDGE, FIXED_NOW);
+    const lane = lanes.find(l => l.cbpPortNumber === 240201 && l.laneType === LaneType.General);
+    expect(lane?.delayMinutes).toBeNull();
+  });
+
+  it('W5-b: delay_minutes literally undefined in API → delayMinutes null', async () => {
+    const portWithUndefinedDelay: CbpApiPort[] = [
+      {
+        port_number: '240201',
+        border: 'Mexican Border',
+        port_name: 'El Paso',
+        crossing_name: 'BOTA',
+        hours: '24/7',
+        date: '6/19/2026',
+        time: '13:00:00',
+        port_status: 'Open',
+        passenger_vehicle_lanes: {
+          standard_lanes: {
+            operational_status: 'no delay',
+            update_time: '',
+            delay_minutes: undefined as unknown as string, // literal undefined
+            lanes_open: '3',
+          },
+          NEXUS_SENTRI_lanes: undefined,
+          ready_lanes: undefined,
+        },
+        pedestrian_lanes: { standard_lanes: undefined },
+      },
+    ];
+    const repo = makeMockRepo();
+    const adapter = makeAdapter(jest.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve(portWithUndefinedDelay) }), repo);
+    const lanes = await adapter.fetchAll(PORT_TO_BRIDGE, FIXED_NOW);
+    const lane = lanes.find(l => l.cbpPortNumber === 240201 && l.laneType === LaneType.General);
+    expect(lane?.delayMinutes).toBeNull();
+  });
+
+  it('W5-c: lanes_open literally null in API → lanesOpen null', async () => {
+    const portWithNullLanesOpen: CbpApiPort[] = [
+      {
+        port_number: '240201',
+        border: 'Mexican Border',
+        port_name: 'El Paso',
+        crossing_name: 'BOTA',
+        hours: '24/7',
+        date: '6/19/2026',
+        time: '13:00:00',
+        port_status: 'Open',
+        passenger_vehicle_lanes: {
+          standard_lanes: {
+            operational_status: 'delay',
+            update_time: '',
+            delay_minutes: '10',
+            lanes_open: null as unknown as string, // literal null
+          },
+          NEXUS_SENTRI_lanes: undefined,
+          ready_lanes: undefined,
+        },
+        pedestrian_lanes: { standard_lanes: undefined },
+      },
+    ];
+    const repo = makeMockRepo();
+    const adapter = makeAdapter(jest.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve(portWithNullLanesOpen) }), repo);
+    const lanes = await adapter.fetchAll(PORT_TO_BRIDGE, FIXED_NOW);
+    const lane = lanes.find(l => l.cbpPortNumber === 240201 && l.laneType === LaneType.General);
+    expect(lane?.lanesOpen).toBeNull();
+  });
+});
+
+// ===========================================================================
+// WARNING 6 — AbortSignal passed to fetch (strengthen timeout test)
+// ===========================================================================
+
+describe('CbpAdapter — AbortSignal passed to fetch (WARNING 6)', () => {
+  it('W6-a: fetch is called with a second argument containing a signal property', async () => {
+    const repo = makeMockRepo();
+    const fetchFn = makeFetchMock();
+    const adapter = makeAdapter(fetchFn, repo);
+
+    await adapter.fetchAll(PORT_TO_BRIDGE, FIXED_NOW);
+
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    const [_url, init] = fetchFn.mock.calls[0] as [string, RequestInit];
+    expect(init).toBeDefined();
+    expect(init.signal).toBeDefined();
+    // Signal must be an AbortSignal
+    expect(init.signal).toBeInstanceOf(AbortSignal);
   });
 });

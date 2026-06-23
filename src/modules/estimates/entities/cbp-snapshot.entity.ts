@@ -58,8 +58,14 @@ export class CbpSnapshot {
   @Column({ type: 'varchar', length: 255, nullable: true, default: null })
   sourceUpdateTimeRaw: string | null;
 
-  /** Timestamp when the CBP API was called — primary TTL reference. */
-  @Column({ type: 'timestamptz' })
+  /**
+   * Timestamp when the CBP API was called — primary TTL reference.
+   * Default matches migration DDL: `DEFAULT now()`.
+   * The adapter always sets this explicitly via the injected `now` param,
+   * but the DB default ensures rows inserted outside the adapter (e.g. manual
+   * backfill) also get a sensible value.
+   */
+  @Column({ type: 'timestamptz', default: () => 'now()' })
   fetchedAt: Date;
 
   @CreateDateColumn({ type: 'timestamptz' })

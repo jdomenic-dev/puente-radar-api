@@ -61,18 +61,49 @@ export interface CbpApiPort {
 // ---------------------------------------------------------------------------
 
 /**
+ * All snapshot fields needed to reconstruct a NormalizedLane for stale fallback.
+ * Must stay in sync with _snapshotsToNormalizedLanes — any field added there
+ * must be added here.
+ */
+export type SnapshotLaneRow = Pick<
+  CbpSnapshot,
+  | 'bridgeId'
+  | 'laneType'
+  | 'fetchedAt'
+  | 'delayMinutes'
+  | 'lanesOpen'
+  | 'operationalStatus'
+  | 'isOpen'
+  | 'sourceUpdateTimeRaw'
+>;
+
+/**
  * Minimal repository surface used by CbpAdapter.
- * The full TypeORM Repository<CbpSnapshot> satisfies this, but unit tests
- * inject a plain mock object.
+ * The full TypeORM Repository<CbpSnapshot> does NOT provide findLatestPerBridgeLane
+ * out of the box — Slice C MUST implement this as a custom query method, e.g.:
+ *
+ *   SELECT DISTINCT ON ("bridgeId", "laneType")
+ *     "bridgeId", "laneType", "fetchedAt", "delayMinutes", "lanesOpen",
+ *     "operationalStatus", "isOpen", "sourceUpdateTimeRaw"
+ *   FROM "cbp_snapshots"
+ *   WHERE "bridgeId" = ANY($1)
+ *   ORDER BY "bridgeId", "laneType", "fetchedAt" DESC
+ *
+ * This is a SLICE C dependency: EstimatesModule must create a custom repository
+ * or extend the TypeORM repository with this method before wiring CbpAdapter.
+ *
+ * Unit tests inject a plain mock object; the full return type is SnapshotLaneRow[]
+ * so all fields needed for stale-fallback reconstruction are guaranteed to be present.
  */
 export interface CbpSnapshotRepository {
   save(snapshot: Partial<CbpSnapshot>): Promise<unknown>;
   /**
-   * Return the single most-recent snapshot per (bridgeId, laneType) combination.
-   * Implementation: SELECT DISTINCT ON (bridgeId, laneType) ORDER BY fetchedAt DESC.
-   * For mocking purposes, tests provide a flat array of representative rows.
+   * Return the single most-recent snapshot per (bridgeId, laneType) combination,
+   * including ALL fields needed to reconstruct a NormalizedLane.
+   *
+   * @param bridgeIds  Array of bridge UUIDs to query for.
    */
-  findLatestPerBridgeLane(bridgeIds: string[]): Promise<Array<Pick<CbpSnapshot, 'bridgeId' | 'laneType' | 'fetchedAt'>>>;
+  findLatestPerBridgeLane(bridgeIds: string[]): Promise<SnapshotLaneRow[]>;
 }
 
 // ---------------------------------------------------------------------------
@@ -108,6 +139,18 @@ export interface GetLanesResult {
    */
   sourceStale: boolean;
 }
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+/** All lane types the CBP adapter maps — used for full-coverage freshness check. */
+const ALL_LANE_TYPES: LaneType[] = [
+  LaneType.General,
+  LaneType.Sentri,
+  LaneType.ReadyLane,
+  LaneType.Pedestrian,
+];
 
 // ---------------------------------------------------------------------------
 // Parsing helpers
@@ -229,12 +272,22 @@ export class CbpAdapter implements WaitTimeSourceAdapter {
     const bridgeIds = Array.from(portToBridgeMap.values());
     const latestSnapshots = await this.snapshotRepo.findLatestPerBridgeLane(bridgeIds);
 
-    // Check freshness: if at least one snapshot exists and it's within TTL,
-    // consider the whole set fresh (simple heuristic — per design "multi-instance safe").
-    const isFresh = latestSnapshots.length > 0 && latestSnapshots.every(snap => {
-      const ageMs = now.getTime() - snap.fetchedAt.getTime();
-      return ageMs <= this.ttlMinutes * 60_000;
-    });
+    // Check freshness: ALL expected (bridgeId × laneType) combinations must be
+    // present in the cache AND within TTL. A partial cache (missing bridges or
+    // lanes) must trigger a refresh — returning incomplete data silently is worse
+    // than a network call.
+    //
+    // "Expected" = every bridge in portToBridgeMap × all 4 LaneType values.
+    // This is conservative: if a bridge genuinely has no data for a lane type,
+    // the fresh fetch will return an empty NormalizedLane set for it, which is
+    // the correct signal. We never skip a refresh just because the map is partial.
+    const expectedCount = portToBridgeMap.size * ALL_LANE_TYPES.length;
+    const isFresh =
+      latestSnapshots.length === expectedCount &&
+      latestSnapshots.every(snap => {
+        const ageMs = now.getTime() - snap.fetchedAt.getTime();
+        return ageMs <= this.ttlMinutes * 60_000;
+      });
 
     if (isFresh) {
       // Convert persisted snapshots back to NormalizedLane shape for callers
@@ -395,7 +448,7 @@ export class CbpAdapter implements WaitTimeSourceAdapter {
   // -------------------------------------------------------------------------
 
   private _snapshotsToNormalizedLanes(
-    snapshots: Array<Pick<CbpSnapshot, 'bridgeId' | 'laneType' | 'fetchedAt'>>,
+    snapshots: SnapshotLaneRow[],
     portToBridgeMap: Map<number, string>,
   ): NormalizedLane[] {
     // Build reverse map: bridgeId → cbpPortNumber
@@ -406,18 +459,17 @@ export class CbpAdapter implements WaitTimeSourceAdapter {
 
     return snapshots
       .filter(s => bridgeToPort.has(s.bridgeId))
-      .map(s => {
-        const snap = s as Partial<CbpSnapshot>;
-        return {
-          cbpPortNumber: bridgeToPort.get(s.bridgeId)!,
-          laneType: s.laneType,
-          delayMinutes: snap.delayMinutes ?? null,
-          lanesOpen: snap.lanesOpen ?? null,
-          operationalStatus: snap.operationalStatus ?? '',
-          isOpen: snap.isOpen ?? false,
-          sourceUpdateTimeRaw: snap.sourceUpdateTimeRaw ?? '',
-          fetchedAt: s.fetchedAt,
-        };
-      });
+      .map(s => ({
+        cbpPortNumber: bridgeToPort.get(s.bridgeId)!,
+        laneType: s.laneType,
+        // Use real persisted values — never silently default them.
+        // The SnapshotLaneRow type guarantees all fields are present.
+        delayMinutes: s.delayMinutes,
+        lanesOpen: s.lanesOpen,
+        operationalStatus: s.operationalStatus ?? '',
+        isOpen: s.isOpen,
+        sourceUpdateTimeRaw: s.sourceUpdateTimeRaw ?? '',
+        fetchedAt: s.fetchedAt,
+      }));
   }
 }
