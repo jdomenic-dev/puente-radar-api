@@ -105,11 +105,14 @@ describe('Puente Radar API (e2e)', () => {
     });
 
     it('returns 404 when referenced bridge does not exist', async () => {
+      // laneType is required since Slice A — include it to pass DTO validation
+      // and reach the bridge lookup which returns 404.
       const res = await request(app.getHttpServer())
         .post('/reports')
         .send({
           bridgeId: '00000000-0000-0000-0000-000000000000',
           lineStatus: 'pending',
+          laneType: 'general',
         })
         .set('Content-Type', 'application/json');
       expect(res.status).toBe(404);
