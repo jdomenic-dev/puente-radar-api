@@ -27,9 +27,8 @@ import { EstimateCalculator } from './estimate.calculator.js';
 import { EstimatesService } from './estimates.service.js';
 import { EstimatesController } from './estimates.controller.js';
 import { REDIS_CLIENT } from '../redis/redis.module.js';
+import { CBP_CACHE } from './estimates.tokens.js';
 import type Redis from 'ioredis';
-
-export const CBP_CACHE = 'CBP_CACHE';
 
 @Module({
   imports: [

@@ -30,7 +30,7 @@ import { ConfigService } from '@nestjs/config';
 import { BridgesService } from '../bridges/bridges.service.js';
 import { ReportsService } from '../reports/reports.service.js';
 import { CbpRedisCache } from './sources/cbp-redis-cache.js';
-import { CBP_CACHE } from './estimates.module.js';
+import { CBP_CACHE } from './estimates.tokens.js';
 import { CbpSnapshotCustomRepository, CBP_SNAPSHOT_REPOSITORY } from './cbp-snapshot.repository.js';
 import { EstimateAdjustment } from './entities/estimate-adjustment.entity.js';
 import { EstimateCalculator } from './estimate.calculator.js';

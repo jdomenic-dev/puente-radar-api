@@ -12,5 +12,18 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
 
+  redis:
+    image: redis:7-alpine
+    container_name: puente-radar-redis
+    restart: unless-stopped
+    # Host port 6380 avoids conflict with a Redis already running on 6379
+    # for another project. App connects via REDIS_URL=redis://localhost:6380
+    ports:
+      - "6380:6379"
+    volumes:
+      - redisdata:/data
+    command: redis-server --appendonly yes
+
 volumes:
   pgdata:
+  redisdata:

@@ -19,7 +19,7 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module.js';
-import { CBP_CACHE } from '../src/modules/estimates/estimates.module.js';
+import { CBP_CACHE } from '../src/modules/estimates/estimates.tokens.js';
 import { REDIS_CLIENT } from '../src/modules/redis/redis.module.js';
 import { BridgesService } from '../src/modules/bridges/bridges.service.js';
 import { LaneType } from '../src/common/enums/lane.enum.js';
