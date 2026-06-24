@@ -3,6 +3,7 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module.js';
+import { REDIS_CLIENT } from '../src/modules/redis/redis.module.js';
 
 /**
  * E2E test suite for Puente Radar backend.
@@ -28,7 +29,11 @@ describe('Puente Radar API (e2e)', () => {
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      // No Redis in test environment — provide null so Redis-dependent providers degrade gracefully
+      .overrideProvider(REDIS_CLIENT)
+      .useValue(null)
+      .compile();
 
     app = moduleFixture.createNestApplication();
 

@@ -20,7 +20,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 import { EstimatesService } from './estimates.service.js';
 import { EstimateCalculator } from './estimate.calculator.js';
-import { CbpAdapter } from './sources/cbp.adapter.js';
+import { CBP_CACHE } from './estimates.module.js';
 import { EstimateAdjustment } from './entities/estimate-adjustment.entity.js';
 import { BridgesService } from '../bridges/bridges.service.js';
 import { ReportsService } from '../reports/reports.service.js';
@@ -131,7 +131,7 @@ describe('EstimatesService', () => {
         EstimatesService,
         EstimateCalculator,
         {
-          provide: CbpAdapter,
+          provide: CBP_CACHE,
           useValue: mockCbpAdapter,
         },
         {

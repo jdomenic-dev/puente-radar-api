@@ -58,6 +58,46 @@ class EnvironmentVariables {
   @IsOptional()
   CORS_ORIGIN: string = '*';
 
+  // ── Redis configuration ────────────────────────────────────────────────────
+
+  /**
+   * Redis connection URL. Format: redis://[:password@]host[:port][/db]
+   * Optional — when omitted, Redis features are disabled gracefully.
+   * Example: redis://default:password@redis.railway.internal:6379
+   */
+  @IsString()
+  @IsOptional()
+  REDIS_URL?: string;
+
+  // ── Rate limiting configuration ────────────────────────────────────────────
+
+  /**
+   * Max requests per window (global throttle).
+   * Default: 60 requests per minute.
+   */
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  THROTTLE_LIMIT: number = 60;
+
+  /**
+   * Throttle window in milliseconds.
+   * Default: 60000 (1 minute).
+   */
+  @IsInt()
+  @Min(1000)
+  @IsOptional()
+  THROTTLE_TTL_MS: number = 60000;
+
+  /**
+   * Max requests per window for POST /reports (per device).
+   * Default: 5 reports per minute.
+   */
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  THROTTLE_REPORTS_LIMIT: number = 5;
+
   // ── CBP Adapter configuration ──────────────────────────────────────────────
 
   /**

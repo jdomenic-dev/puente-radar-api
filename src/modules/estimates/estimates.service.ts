@@ -29,7 +29,8 @@ import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import { BridgesService } from '../bridges/bridges.service.js';
 import { ReportsService } from '../reports/reports.service.js';
-import { CbpAdapter } from './sources/cbp.adapter.js';
+import { CbpRedisCache } from './sources/cbp-redis-cache.js';
+import { CBP_CACHE } from './estimates.module.js';
 import { CbpSnapshotCustomRepository, CBP_SNAPSHOT_REPOSITORY } from './cbp-snapshot.repository.js';
 import { EstimateAdjustment } from './entities/estimate-adjustment.entity.js';
 import { EstimateCalculator } from './estimate.calculator.js';
@@ -71,7 +72,8 @@ export class EstimatesService {
   constructor(
     private readonly bridgesService: BridgesService,
     private readonly reportsService: ReportsService,
-    private readonly cbpAdapter: CbpAdapter,
+    @Inject(CBP_CACHE)
+    private readonly cbpCache: CbpRedisCache,
     @Inject(CBP_SNAPSHOT_REPOSITORY)
     private readonly snapshotRepo: CbpSnapshotCustomRepository,
     @InjectRepository(EstimateAdjustment)
@@ -94,8 +96,8 @@ export class EstimatesService {
       }
     }
 
-    // ── 3. ONE CBP fetch cycle ────────────────────────────────────────────────
-    const { lanes, sourceStale } = await this.cbpAdapter.getLanes(portToBridgeMap, now);
+    // ── 3. ONE CBP fetch cycle (Redis-first, falls back to PG TTL) ───────────
+    const { lanes, sourceStale } = await this.cbpCache.getLanes(portToBridgeMap, now);
 
     // Index lanes by bridgeId+laneType for O(1) lookup
     const bridgeToPort = new Map<string, number>();

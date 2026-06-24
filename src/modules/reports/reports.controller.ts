@@ -1,5 +1,6 @@
 import { Body, Controller, DefaultValuePipe, Get, Param, ParseIntPipe, Post, Query } from '@nestjs/common';
-import { ApiCreatedResponse, ApiNotFoundResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiCreatedResponse, ApiNotFoundResponse, ApiOkResponse, ApiOperation, ApiTags, ApiTooManyRequestsResponse } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { ReportsService } from './reports.service.js';
 import { CreateReportDto } from './dto/create-report.dto.js';
 import { ReportQueryDto } from './dto/report-query.dto.js';
@@ -10,10 +11,17 @@ import { Report } from './entities/report.entity.js';
 export class ReportsController {
   constructor(private readonly reportsService: ReportsService) {}
 
+  /**
+   * POST /reports — strict throttle: 5 requests per minute per IP.
+   * Prevents spam reports from a single source without requiring auth.
+   * The global guard applies 60 req/min; this override tightens it for writes.
+   */
   @Post()
+  @Throttle({ default: { ttl: 60000, limit: 5 } })
   @ApiOperation({ summary: 'Submit an anonymous crossing report' })
   @ApiCreatedResponse({ type: Report })
   @ApiNotFoundResponse({ description: 'Bridge not found' })
+  @ApiTooManyRequestsResponse({ description: 'Too many reports — max 5 per minute per IP' })
   create(@Body() dto: CreateReportDto): Promise<Report> {
     return this.reportsService.create(dto);
   }

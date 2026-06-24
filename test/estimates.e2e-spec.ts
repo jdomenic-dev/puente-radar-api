@@ -19,7 +19,8 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module.js';
-import { CbpAdapter } from '../src/modules/estimates/sources/cbp.adapter.js';
+import { CBP_CACHE } from '../src/modules/estimates/estimates.module.js';
+import { REDIS_CLIENT } from '../src/modules/redis/redis.module.js';
 import { BridgesService } from '../src/modules/bridges/bridges.service.js';
 import { LaneType } from '../src/common/enums/lane.enum.js';
 import { BridgeStatus } from '../src/common/enums/bridge.enum.js';
@@ -142,8 +143,11 @@ describe('GET /estimates (e2e)', () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     })
-      // No real network — stub replaces CbpAdapter
-      .overrideProvider(CbpAdapter)
+      // No Redis in tests — provide null so CbpRedisCache falls through to PG adapter
+      .overrideProvider(REDIS_CLIENT)
+      .useValue(null)
+      // No real network — stub replaces CbpRedisCache (which wraps CbpAdapter)
+      .overrideProvider(CBP_CACHE)
       .useValue(fakeCbpAdapterStub)
       // No real DB bridge lookup — stub always returns two fake bridges
       .overrideProvider(BridgesService)
