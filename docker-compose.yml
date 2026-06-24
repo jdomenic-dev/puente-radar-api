@@ -13,16 +13,18 @@ services:
       - pgdata:/var/lib/postgresql/data
 
   redis:
-    image: redis:7-alpine
+    # redis-stack bundles Redis + RedisInsight web UI (no extra container needed)
+    image: redis/redis-stack:latest
     container_name: puente-radar-redis
     restart: unless-stopped
     # Host port 6380 avoids conflict with a Redis already running on 6379
     # for another project. App connects via REDIS_URL=redis://localhost:6380
+    # Port 8006 → RedisInsight web UI at http://localhost:8006
     ports:
       - "6380:6379"
+      - "8006:8001"
     volumes:
       - redisdata:/data
-    command: redis-server --appendonly yes
 
 volumes:
   pgdata:
