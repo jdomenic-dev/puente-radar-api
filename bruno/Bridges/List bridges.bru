@@ -1,0 +1,38 @@
+meta {
+  name: List bridges
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/bridges
+  body: none
+  auth: none
+}
+
+docs {
+  # GET /bridges
+
+  Lista todos los puentes activos del catálogo (6 puentes Juárez–El Paso),
+  ordenados por `sortOrder`.
+
+  Cada puente incluye su `cbpPortNumber` (el puerto CBP usado para los
+  tiempos oficiales).
+
+  ## Side effect
+
+  Este request guarda automáticamente el `id` del primer puente en la
+  variable de entorno `bridgeId`, para que los demás requests
+  (reportes, detalle) lo reutilicen.
+}
+
+assert {
+  res.status: eq 200
+}
+
+script:post-response {
+  if (res.body && res.body.length > 0) {
+    bru.setEnvVar("bridgeId", res.body[0].id);
+    bru.setEnvVar("bridgeSlug", res.body[0].slug);
+  }
+}

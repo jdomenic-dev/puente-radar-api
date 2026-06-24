@@ -1,0 +1,22 @@
+meta {
+  name: Bridges summary
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/bridges/summary
+  body: none
+  auth: none
+}
+
+docs {
+  # GET /bridges/summary
+
+  Resumen liviano de todos los puentes para la pantalla Home:
+  nombre, estado, tiempo y última actualización por puente.
+}
+
+assert {
+  res.status: eq 200
+}

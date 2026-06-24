@@ -1,0 +1,22 @@
+meta {
+  name: Home summary
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/reports/summary/home
+  body: none
+  auth: none
+}
+
+docs {
+  # GET /reports/summary/home
+
+  Resumen para Home: cada puente con su conteo de reportes recientes
+  (últimos 60 min). Útil para mostrar "X reportes recientes" en las cards.
+}
+
+assert {
+  res.status: eq 200
+}

@@ -1,0 +1,30 @@
+meta {
+  name: Get bridge by slug
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/bridges/slug/puente-libre
+  body: none
+  auth: none
+}
+
+docs {
+  # GET /bridges/slug/:slug
+
+  Detalle de un puente por su slug legible.
+
+  Slugs disponibles (seed):
+  - `puente-libre` (Bridge of the Americas — CBP 240201)
+  - `puente-santa-fe` (Paso del Norte — CBP 240202)
+  - `puente-zaragoza` (Ysleta — CBP 240203)
+  - `puente-stanton-lerdo` (Stanton/Lerdo — CBP 240204)
+  - `puente-guadalupe-tornillo` (Tornillo — CBP 240401)
+  - `puente-santa-teresa` (Santa Teresa — CBP 240801)
+}
+
+assert {
+  res.status: eq 200
+  res.body.slug: eq puente-libre
+}

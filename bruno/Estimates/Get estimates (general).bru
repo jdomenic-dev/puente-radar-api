@@ -1,0 +1,43 @@
+meta {
+  name: Get estimates (general)
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/estimates
+  body: none
+  auth: none
+}
+
+docs {
+  # GET /estimates
+
+  El endpoint principal. Devuelve una estimación por cada puente activo
+  para el `laneType` indicado (default `general`), en una sola llamada
+  con un solo ciclo de fetch a CBP.
+
+  ## Cómo se calcula
+
+  Combina, por puente + carril:
+  - **CBP oficial** (peso 0.60) — fuente base
+  - **Reportes comunitarios recientes** (peso 0.25, últimos 90 min, ponderados por recencia)
+  - **Ajuste admin** (aditivo)
+
+  Con caché Redis (TTL 15 min). Si CBP se cae, usa el último snapshot
+  con `sourceStale: true` y baja la confianza.
+
+  ## Campos de respuesta (por puente)
+
+  - `estimatedWaitMinutes` / `estimateUnavailable` (`laneClosed` | `noData`)
+  - `status`: low ≤30 / medium 31–60 / high 61–120 / saturated >120
+  - `confidence`: low | medium | high  +  `confidenceScore` (0–100)
+  - `trend`: up | down | stable
+  - `sourcesUsed`: ej. ["cbp", "community"]
+  - `isBestOption` / `bestOptionFallback` — marca el puente recomendado
+  - `sourceStale` — true si vino de caché por caída de CBP
+}
+
+assert {
+  res.status: eq 200
+}

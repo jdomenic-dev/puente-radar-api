@@ -1,0 +1,25 @@
+meta {
+  name: Get estimates (ready lane)
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/estimates?laneType=ready_lane
+  body: none
+  auth: none
+}
+
+params:query {
+  laneType: ready_lane
+}
+
+docs {
+  # GET /estimates?laneType=ready_lane
+
+  Estimaciones para el carril Ready Lane (mapea a `ready_lanes` de CBP).
+}
+
+assert {
+  res.status: eq 200
+}

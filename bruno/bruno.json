@@ -1,0 +1,9 @@
+{
+  "version": "1",
+  "name": "Puente Radar API",
+  "type": "collection",
+  "ignore": [
+    "node_modules",
+    ".git"
+  ]
+}

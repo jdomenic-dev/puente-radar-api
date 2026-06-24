@@ -1,0 +1,26 @@
+meta {
+  name: Get estimates (invalid lane - 400)
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/estimates?laneType=carpool
+  body: none
+  auth: none
+}
+
+params:query {
+  laneType: carpool
+}
+
+docs {
+  # GET /estimates?laneType=<invalido>
+
+  Demuestra la validación: un `laneType` fuera del enum
+  (`general | ready_lane | sentri | pedestrian`) devuelve **400 Bad Request**.
+}
+
+assert {
+  res.status: eq 400
+}

@@ -1,0 +1,29 @@
+docs {
+  # Puente Radar API
+
+  Colección Bruno para la API de Puente Radar — estimación de tiempos de cruce
+  en los puentes fronterizos Ciudad Juárez ↔ El Paso.
+
+  ## Cómo usar
+
+  1. Levantá el stack:
+     - `docker compose up -d` (PostgreSQL :5433 + Redis :6380)
+     - `pnpm seed` (primera vez — siembra los 6 puentes con sus puertos CBP)
+     - `pnpm start:dev`
+  2. En Bruno, seleccioná el environment **Local** (arriba a la derecha).
+  3. Corré primero `Bridges / List bridges` para obtener un `bridgeId` real.
+     La respuesta guarda automáticamente el primer id en la variable `bridgeId`.
+
+  ## Variables de entorno
+
+  - `baseUrl` — URL base de la API
+  - `bridgeId` — UUID de puente, autopoblado por "List bridges"
+  - `laneType` — general | ready_lane | sentri | pedestrian
+
+  ## Notas
+
+  - `POST /reports` tiene rate limit de 5 req/min por IP (devuelve 429 al pasarse).
+  - `GET /estimates` combina CBP oficial + reportes comunitarios + ajuste admin,
+    con caché Redis (TTL 15 min).
+  - Swagger disponible en `{{baseUrl}}/api/docs`.
+}

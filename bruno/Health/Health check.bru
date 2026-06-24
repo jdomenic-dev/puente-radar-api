@@ -1,0 +1,23 @@
+meta {
+  name: Health check
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/health
+  body: none
+  auth: none
+}
+
+docs {
+  # GET /health
+
+  Liveness probe. Devuelve `{ "status": "ok" }` cuando la API está arriba.
+  Útil para health checks de Railway / uptime monitors.
+}
+
+assert {
+  res.status: eq 200
+  res.body.status: eq ok
+}

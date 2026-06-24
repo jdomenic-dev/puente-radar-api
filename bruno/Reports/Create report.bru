@@ -1,0 +1,46 @@
+meta {
+  name: Create report
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/reports
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "bridgeId": "{{bridgeId}}",
+    "laneType": "general",
+    "lineStatus": "pending",
+    "reportedWaitMinutes": 45,
+    "comment": "Voy por las banderas, fila moderada",
+    "anonymousDeviceId": "device-demo-001"
+  }
+}
+
+docs {
+  # POST /reports
+
+  Crea un reporte ciudadano de cruce. Alimenta la estimación comunitaria.
+
+  ## Campos
+
+  - `bridgeId` (req): UUID del puente. Usa `{{bridgeId}}` (corré List bridges).
+  - `laneType` (req): `general` | `ready_lane` | `sentri` | `pedestrian`
+  - `lineStatus` (req): `pending` | `verified` | `rejected`
+  - `reportedWaitMinutes` (opc): entero 0–360. Si se omite NO se guarda como 0.
+  - `comment` (opc): máx 300 chars.
+  - `anonymousDeviceId` (opc): identificador anónimo del dispositivo.
+
+  ## Rate limit
+
+  Máximo **5 requests por minuto por IP**. El 6to devuelve **429 Too Many Requests**.
+  Ver el request "Rate limit test (429)".
+}
+
+assert {
+  res.status: eq 201
+}

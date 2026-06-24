@@ -1,0 +1,25 @@
+meta {
+  name: Get estimates (pedestrian)
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/estimates?laneType=pedestrian
+  body: none
+  auth: none
+}
+
+params:query {
+  laneType: pedestrian
+}
+
+docs {
+  # GET /estimates?laneType=pedestrian
+
+  Estimaciones para cruce peatonal (mapea a `pedestrian_lanes` de CBP).
+}
+
+assert {
+  res.status: eq 200
+}

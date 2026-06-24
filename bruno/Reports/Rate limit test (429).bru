@@ -1,0 +1,35 @@
+meta {
+  name: Rate limit test (429)
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/reports
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "bridgeId": "{{bridgeId}}",
+    "laneType": "general",
+    "lineStatus": "pending",
+    "reportedWaitMinutes": 30
+  }
+}
+
+docs {
+  # Rate limit demo — POST /reports (5/min)
+
+  Corré este request **6 veces seguidas rápido** (botón "Run" varias veces,
+  o usá el Runner de Bruno con 6 iteraciones).
+
+  - Requests 1–5 → `201 Created`
+  - Request 6+ → `429 Too Many Requests`
+
+  El límite es por IP, ventana de 60 segundos. Se resetea al minuto.
+
+  El límite global de la API es 60 req/min; este endpoint de escritura
+  está endurecido a 5/min como protección anti-spam.
+}

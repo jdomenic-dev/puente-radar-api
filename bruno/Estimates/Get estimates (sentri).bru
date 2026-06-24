@@ -1,0 +1,25 @@
+meta {
+  name: Get estimates (sentri)
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/estimates?laneType=sentri
+  body: none
+  auth: none
+}
+
+params:query {
+  laneType: sentri
+}
+
+docs {
+  # GET /estimates?laneType=sentri
+
+  Estimaciones para el carril SENTRI (mapea a `NEXUS_SENTRI_lanes` de CBP).
+}
+
+assert {
+  res.status: eq 200
+}

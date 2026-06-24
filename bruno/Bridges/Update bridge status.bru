@@ -1,0 +1,39 @@
+meta {
+  name: Update bridge status
+  type: http
+  seq: 5
+}
+
+patch {
+  url: {{baseUrl}}/bridges/{{bridgeId}}/status
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "status": "medium",
+    "waitMinutes": 45,
+    "trend": "rising"
+  }
+}
+
+docs {
+  # PATCH /bridges/:id/status
+
+  Actualiza el estado operativo de un puente (uso admin / manual).
+  Todos los campos son opcionales.
+
+  ## Campos
+
+  - `status`: `low` | `medium` | `high` | `saturated`
+  - `waitMinutes`: entero 0–300
+  - `trend`: `rising` | `steady` | `falling`
+
+  > Nota: esto NO es la estimación calculada (`GET /estimates`), es un
+  > override manual a nivel de catálogo de puente.
+}
+
+assert {
+  res.status: eq 200
+}

@@ -1,0 +1,27 @@
+meta {
+  name: Get bridge by id
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/bridges/{{bridgeId}}
+  body: none
+  auth: none
+}
+
+docs {
+  # GET /bridges/:id
+
+  Detalle de un puente por su UUID.
+
+  Usa la variable `{{bridgeId}}`, que se autopobla al correr
+  **List bridges**. Corré ese request primero.
+
+  Devuelve 404 si el UUID no existe.
+}
+
+assert {
+  res.status: eq 200
+  res.body.id: eq {{bridgeId}}
+}

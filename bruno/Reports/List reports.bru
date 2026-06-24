@@ -1,0 +1,33 @@
+meta {
+  name: List reports
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/reports?bridgeId={{bridgeId}}&limit=20
+  body: none
+  auth: none
+}
+
+params:query {
+  bridgeId: {{bridgeId}}
+  limit: 20
+}
+
+docs {
+  # GET /reports
+
+  Lista reportes con filtros opcionales.
+
+  ## Query params
+
+  - `bridgeId` (opc): filtra por puente (UUID).
+  - `limit` (opc): máx resultados, 1–100, default 20.
+
+  Quitá `bridgeId` para traer reportes de todos los puentes.
+}
+
+assert {
+  res.status: eq 200
+}

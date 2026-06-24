@@ -1,0 +1,31 @@
+meta {
+  name: Recent by bridge
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/reports/bridge/{{bridgeId}}/recent?limit=10
+  body: none
+  auth: none
+}
+
+params:query {
+  limit: 10
+}
+
+docs {
+  # GET /reports/bridge/:bridgeId/recent
+
+  Reportes recientes de un puente específico, más nuevos primero.
+
+  ## Query params
+
+  - `limit` (opc): default 10.
+
+  Devuelve 404 si el puente no existe.
+}
+
+assert {
+  res.status: eq 200
+}
