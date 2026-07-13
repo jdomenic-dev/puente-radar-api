@@ -29,10 +29,6 @@ RUN npm install -g pnpm@9
 
 WORKDIR /app
 
-# Run as non-root user for security
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S node -u 1001
-
 COPY package.json pnpm-lock.yaml .npmrc ./
 
 # Install only production dependencies
@@ -41,7 +37,7 @@ RUN pnpm install --frozen-lockfile --prod && \
     rm -rf /root/.npm /tmp/*
 
 # Copy compiled application from builder
-COPY --from=builder --chown=node:nodejs /app/dist ./dist
+COPY --from=builder --chown=node:node /app/dist ./dist
 
 USER node
 
