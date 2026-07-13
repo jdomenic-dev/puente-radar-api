@@ -45,7 +45,7 @@ jobs:
       # Note: unit tests run here. E2E tests need PostgreSQL; run them in a
       # separate job if you want them on every PR.
       - name: Unit tests
-        run: pnpm run test -- --ci --coverage=false
+        run: pnpm run test --ci --coverage=false
 
   # ───────────────────────────────────────────────────────────────────────────
   # Build and push Docker image to Amazon ECR (only on main / staging pushes)
