@@ -69,13 +69,13 @@ export interface CalculatorOutput {
 // ---------------------------------------------------------------------------
 
 /** Normal base weights (admin slot is reserved, not part of base blend). */
-const W_OFFICIAL_NORMAL = 0.60;
+const W_OFFICIAL_NORMAL = 0.6;
 const W_COMMUNITY_NORMAL = 0.25;
 const W_SUM_NORMAL = W_OFFICIAL_NORMAL + W_COMMUNITY_NORMAL; // 0.85
 
 /** Disagreement-shifted weights: swap roles to make community dominant. */
 const W_OFFICIAL_SHIFTED = 0.25;
-const W_COMMUNITY_SHIFTED = 0.60;
+const W_COMMUNITY_SHIFTED = 0.6;
 const W_SUM_SHIFTED = W_OFFICIAL_SHIFTED + W_COMMUNITY_SHIFTED; // 0.85
 
 /** Maximum confidence score when there are ZERO usable community reports. */
@@ -117,8 +117,7 @@ export function calculateEstimate(input: CalculatorInput): CalculatorOutput {
   // 1. Determine which sources are usable
   // ------------------------------------------------------------------
   const officialUsable = official !== undefined && !official.closed;
-  const communityUsable =
-    community !== undefined && community.sampleSize > 0;
+  const communityUsable = community !== undefined && community.sampleSize > 0;
 
   // Detect "closed lane" vs "no data" for unavailable paths
   const officialClosed = official !== undefined && official.closed;
@@ -135,16 +134,13 @@ export function calculateEstimate(input: CalculatorInput): CalculatorOutput {
   if (sourceStale) score -= 15;
 
   // Community sample size 1 or 2 → small sample penalty
-  if (communityUsable && community!.sampleSize <= 2) score -= 15;
+  if (communityUsable && community.sampleSize <= 2) score -= 15;
 
   // Closed or N/A lane
   if (officialClosed) score -= 25;
 
   // Disagreement > 30 (computed against raw values; penalty applied regardless of which source wins)
-  const disagreement =
-    officialUsable && communityUsable
-      ? Math.abs(official!.wait - community!.value) > 30
-      : false;
+  const disagreement = officialUsable && communityUsable ? Math.abs(official.wait - community.value) > 30 : false;
 
   if (disagreement) score -= 20;
 
@@ -184,19 +180,16 @@ export function calculateEstimate(input: CalculatorInput): CalculatorOutput {
       wSum = W_SUM_NORMAL;
     }
 
-    base = (official!.wait * wOfficial + community!.value * wCommunity) / wSum;
+    base = (official.wait * wOfficial + community.value * wCommunity) / wSum;
     sourcesUsed.push('cbp', 'community');
-
   } else if (officialUsable) {
     // CBP-only (cold-start)
-    base = official!.wait;
+    base = official.wait;
     sourcesUsed.push('cbp');
-
   } else if (communityUsable) {
     // Community-only (official absent or closed)
-    base = community!.value;
+    base = community.value;
     sourcesUsed.push('community');
-
   } else {
     // Neither source is usable → unavailable
     const reason: UnavailableReason = officialClosed ? 'laneClosed' : 'noData';

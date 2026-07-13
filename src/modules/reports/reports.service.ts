@@ -98,7 +98,8 @@ export class ReportsService {
       if (report.createdAt < ninetyMinutesAgo) continue;
 
       // Must have a valid wait value (not null, within 0-360)
-      if (report.reportedWaitMinutes === null || report.reportedWaitMinutes < 0 || report.reportedWaitMinutes > 360) continue;
+      if (report.reportedWaitMinutes === null || report.reportedWaitMinutes < 0 || report.reportedWaitMinutes > 360)
+        continue;
 
       // Must not be rejected
       if (report.lineStatus === ReportStatus.Rejected) continue;

@@ -58,6 +58,22 @@ class EnvironmentVariables {
   @IsOptional()
   CORS_ORIGIN: string = '*';
 
+  /**
+   * Maximum JSON body size (e.g. "50kb", "100kb", "1mb").
+   * Prevents large payloads from reaching controllers.
+   */
+  @IsString()
+  @IsOptional()
+  JSON_BODY_LIMIT: string = '50kb';
+
+  /**
+   * Static API key for admin endpoints.
+   * Required before enabling admin operations in production.
+   */
+  @IsString()
+  @IsOptional()
+  ADMIN_API_KEY?: string;
+
   // ── Redis configuration ────────────────────────────────────────────────────
 
   /**

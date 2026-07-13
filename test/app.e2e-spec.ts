@@ -50,10 +50,19 @@ describe('Puente Radar API (e2e)', () => {
   // ── Health ─────────────────────────────────────────────────────────────────
 
   describe('GET /health', () => {
-    it('returns 200 with { status: "ok" }', async () => {
+    it('returns 200 with database ping info', async () => {
+      interface HealthInfo {
+        status: string;
+        info: { database: { status: string } };
+      }
+
       const res = await request(app.getHttpServer()).get('/health');
+      const body = res.body as HealthInfo;
       expect(res.status).toBe(200);
-      expect(res.body).toEqual({ status: 'ok' });
+      expect(body.status).toBe('ok');
+      expect(body.info).toBeDefined();
+      expect(body.info.database).toBeDefined();
+      expect(body.info.database.status).toBe('up');
     });
   });
 

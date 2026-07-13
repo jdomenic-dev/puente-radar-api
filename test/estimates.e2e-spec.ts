@@ -43,7 +43,7 @@ const FAKE_BRIDGE_A: Bridge = {
   sortOrder: 1,
   lastUpdatedAt: null,
   reports: [],
-} as Bridge;
+};
 
 const FAKE_BRIDGE_B: Bridge = {
   id: 'bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb',
@@ -56,7 +56,7 @@ const FAKE_BRIDGE_B: Bridge = {
   sortOrder: 2,
   lastUpdatedAt: null,
   reports: [],
-} as Bridge;
+};
 
 // ---------------------------------------------------------------------------
 // Fake CBP data keyed to the fake bridge port numbers
@@ -231,7 +231,7 @@ describe('GET /estimates (e2e)', () => {
     it('exactly one entry has isBestOption=true', async () => {
       const res = await request(app.getHttpServer()).get('/estimates');
       const entries = res.body as Array<Record<string, unknown>>;
-      const bestOptions = entries.filter(e => e.isBestOption === true);
+      const bestOptions = entries.filter((e) => e.isBestOption === true);
       // Two bridges, one best option (the lower wait: FAKE_BRIDGE_A at 25 min vs 45 min)
       expect(bestOptions).toHaveLength(1);
       expect(bestOptions[0].bridgeId).toBe(FAKE_BRIDGE_A.id);

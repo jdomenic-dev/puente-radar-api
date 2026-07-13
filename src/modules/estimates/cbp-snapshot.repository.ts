@@ -68,10 +68,10 @@ export class CbpSnapshotCustomRepository implements CbpSnapshotRepository {
     );
 
     // Normalize: fetchedAt comes from Postgres as string or Date depending on driver
-    return rows.map(r => ({
+    return rows.map((r) => ({
       ...r,
       fetchedAt: r.fetchedAt instanceof Date ? r.fetchedAt : new Date(r.fetchedAt as unknown as string),
-      laneType: r.laneType as LaneType,
+      laneType: r.laneType,
     }));
   }
 
@@ -81,10 +81,7 @@ export class CbpSnapshotCustomRepository implements CbpSnapshotRepository {
    *
    * Uses ROW_NUMBER() OVER PARTITION BY so we get up to 2 rows per key.
    */
-  async findLatestTwoPerBridgeLane(
-    bridgeIds: string[],
-    laneType: LaneType,
-  ): Promise<SnapshotHistoryRow[]> {
+  async findLatestTwoPerBridgeLane(bridgeIds: string[], laneType: LaneType): Promise<SnapshotHistoryRow[]> {
     if (bridgeIds.length === 0) return [];
 
     // Filter rn <= 2 inside a subquery so Postgres discards extra rows early,
@@ -117,9 +114,9 @@ export class CbpSnapshotCustomRepository implements CbpSnapshotRepository {
       [bridgeIds, laneType],
     );
 
-    return rows.map(r => ({
+    return rows.map((r) => ({
       bridgeId: r.bridgeId,
-      laneType: r.laneType as LaneType,
+      laneType: r.laneType,
       fetchedAt: r.fetchedAt instanceof Date ? r.fetchedAt : new Date(r.fetchedAt as unknown as string),
       delayMinutes: r.delayMinutes,
       lanesOpen: r.lanesOpen,

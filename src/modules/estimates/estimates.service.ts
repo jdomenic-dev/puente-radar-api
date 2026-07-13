@@ -114,7 +114,7 @@ export class EstimatesService {
     }
 
     // ── 4. Load snapshot history for trend (latest 2 per bridge+lane) ────────
-    const bridgeIds = bridges.map(b => b.id);
+    const bridgeIds = bridges.map((b) => b.id);
     const ttlMinutes = this.configService.get<number>('CBP_TTL_MINUTES') ?? 15;
 
     // Load ALL snapshots (latest 1 per bridge+lane for freshness; used for cbpStale)
@@ -197,16 +197,10 @@ export class EstimatesService {
       });
 
       // Trend: compare current estimate vs previous persisted snapshot delayMinutes
-      const trend = this._computeTrend(
-        calcResult.estimatedWaitMinutes,
-        historyIndex.get(bridge.id)?.previous,
-      );
+      const trend = this._computeTrend(calcResult.estimatedWaitMinutes, historyIndex.get(bridge.id)?.previous);
 
       // Timestamps
-      const fetchedAt =
-        officialLane?.fetchedAt?.toISOString() ??
-        latestSnap?.fetchedAt?.toISOString() ??
-        null;
+      const fetchedAt = officialLane?.fetchedAt?.toISOString() ?? latestSnap?.fetchedAt?.toISOString() ?? null;
 
       const lastUpdatedAt = bridge.lastUpdatedAt?.toISOString() ?? null;
 
@@ -261,24 +255,20 @@ export class EstimatesService {
 
   private _assignBestOption(entries: EstimateResponseEntry[]): void {
     // Only available lanes (estimateUnavailable not set) are candidates
-    const available = entries.filter(e => e.laneAvailable && e.estimatedWaitMinutes !== undefined);
+    const available = entries.filter((e) => e.laneAvailable && e.estimatedWaitMinutes !== undefined);
     if (available.length === 0) return;
 
     // Prefer NOT low-confidence: lowest estimatedWaitMinutes among them
-    const nonLowConfidence = available.filter(e => e.confidence !== 'low');
+    const nonLowConfidence = available.filter((e) => e.confidence !== 'low');
     if (nonLowConfidence.length > 0) {
-      const best = nonLowConfidence.reduce((a, b) =>
-        (a.estimatedWaitMinutes! < b.estimatedWaitMinutes!) ? a : b,
-      );
+      const best = nonLowConfidence.reduce((a, b) => (a.estimatedWaitMinutes! < b.estimatedWaitMinutes! ? a : b));
       best.isBestOption = true;
       best.bestOptionFallback = false;
       return;
     }
 
     // Fallback: ALL available are low-confidence → pick lowest anyway
-    const best = available.reduce((a, b) =>
-      (a.estimatedWaitMinutes! < b.estimatedWaitMinutes!) ? a : b,
-    );
+    const best = available.reduce((a, b) => (a.estimatedWaitMinutes! < b.estimatedWaitMinutes! ? a : b));
     best.isBestOption = true;
     best.bestOptionFallback = true;
   }

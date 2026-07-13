@@ -145,12 +145,7 @@ export interface GetLanesResult {
 // ---------------------------------------------------------------------------
 
 /** All lane types the CBP adapter maps — used for full-coverage freshness check. */
-const ALL_LANE_TYPES: LaneType[] = [
-  LaneType.General,
-  LaneType.Sentri,
-  LaneType.ReadyLane,
-  LaneType.Pedestrian,
-];
+const ALL_LANE_TYPES: LaneType[] = [LaneType.General, LaneType.Sentri, LaneType.ReadyLane, LaneType.Pedestrian];
 
 // ---------------------------------------------------------------------------
 // Parsing helpers
@@ -284,7 +279,7 @@ export class CbpAdapter implements WaitTimeSourceAdapter {
     const expectedCount = portToBridgeMap.size * ALL_LANE_TYPES.length;
     const isFresh =
       latestSnapshots.length === expectedCount &&
-      latestSnapshots.every(snap => {
+      latestSnapshots.every((snap) => {
         const ageMs = now.getTime() - snap.fetchedAt.getTime();
         return ageMs <= this.ttlMinutes * 60_000;
       });
@@ -334,11 +329,7 @@ export class CbpAdapter implements WaitTimeSourceAdapter {
   // Private: normalize CBP array → NormalizedLane[]
   // -------------------------------------------------------------------------
 
-  private _normalize(
-    ports: CbpApiPort[],
-    portToBridgeMap: Map<number, string>,
-    now: Date,
-  ): NormalizedLane[] {
+  private _normalize(ports: CbpApiPort[], portToBridgeMap: Map<number, string>, now: Date): NormalizedLane[] {
     const results: NormalizedLane[] = [];
 
     for (const port of ports) {
@@ -352,46 +343,54 @@ export class CbpAdapter implements WaitTimeSourceAdapter {
 
       // Passenger vehicle: standard → general
       if (port.passenger_vehicle_lanes?.standard_lanes) {
-        results.push(this._normalizeOneLane(
-          cbpPortNumber,
-          LaneType.General,
-          portStatus,
-          port.passenger_vehicle_lanes.standard_lanes,
-          now,
-        ));
+        results.push(
+          this._normalizeOneLane(
+            cbpPortNumber,
+            LaneType.General,
+            portStatus,
+            port.passenger_vehicle_lanes.standard_lanes,
+            now,
+          ),
+        );
       }
 
       // Passenger vehicle: NEXUS_SENTRI → sentri
       if (port.passenger_vehicle_lanes?.NEXUS_SENTRI_lanes) {
-        results.push(this._normalizeOneLane(
-          cbpPortNumber,
-          LaneType.Sentri,
-          portStatus,
-          port.passenger_vehicle_lanes.NEXUS_SENTRI_lanes,
-          now,
-        ));
+        results.push(
+          this._normalizeOneLane(
+            cbpPortNumber,
+            LaneType.Sentri,
+            portStatus,
+            port.passenger_vehicle_lanes.NEXUS_SENTRI_lanes,
+            now,
+          ),
+        );
       }
 
       // Passenger vehicle: ready_lanes → ready_lane
       if (port.passenger_vehicle_lanes?.ready_lanes) {
-        results.push(this._normalizeOneLane(
-          cbpPortNumber,
-          LaneType.ReadyLane,
-          portStatus,
-          port.passenger_vehicle_lanes.ready_lanes,
-          now,
-        ));
+        results.push(
+          this._normalizeOneLane(
+            cbpPortNumber,
+            LaneType.ReadyLane,
+            portStatus,
+            port.passenger_vehicle_lanes.ready_lanes,
+            now,
+          ),
+        );
       }
 
       // Pedestrian: standard_lanes → pedestrian
       if (port.pedestrian_lanes?.standard_lanes) {
-        results.push(this._normalizeOneLane(
-          cbpPortNumber,
-          LaneType.Pedestrian,
-          portStatus,
-          port.pedestrian_lanes.standard_lanes,
-          now,
-        ));
+        results.push(
+          this._normalizeOneLane(
+            cbpPortNumber,
+            LaneType.Pedestrian,
+            portStatus,
+            port.pedestrian_lanes.standard_lanes,
+            now,
+          ),
+        );
       }
     }
 
@@ -422,10 +421,7 @@ export class CbpAdapter implements WaitTimeSourceAdapter {
   // Private: persist one snapshot per bridge+lane
   // -------------------------------------------------------------------------
 
-  private async _persistSnapshots(
-    lanes: NormalizedLane[],
-    portToBridgeMap: Map<number, string>,
-  ): Promise<void> {
+  private async _persistSnapshots(lanes: NormalizedLane[], portToBridgeMap: Map<number, string>): Promise<void> {
     for (const lane of lanes) {
       const bridgeId = portToBridgeMap.get(lane.cbpPortNumber);
       if (!bridgeId) continue;
@@ -458,8 +454,8 @@ export class CbpAdapter implements WaitTimeSourceAdapter {
     }
 
     return snapshots
-      .filter(s => bridgeToPort.has(s.bridgeId))
-      .map(s => ({
+      .filter((s) => bridgeToPort.has(s.bridgeId))
+      .map((s) => ({
         cbpPortNumber: bridgeToPort.get(s.bridgeId)!,
         laneType: s.laneType,
         // Use real persisted values — never silently default them.

@@ -22,6 +22,7 @@
 import { CbpAdapter, CbpApiPort } from './cbp.adapter.js';
 import { WaitTimeSourceAdapter, NormalizedLane } from './wait-time-source.adapter.js';
 import { LaneType } from '../../../common/enums/lane.enum.js';
+import { CbpSnapshot } from '../entities/cbp-snapshot.entity.js';
 
 // ---------------------------------------------------------------------------
 // CBP API Fixture
@@ -263,7 +264,7 @@ function makeAdapter(
     baseUrl: opts.baseUrl ?? 'https://bwt.cbp.gov/api/waittimes',
     timeoutMs: opts.timeoutMs ?? 4000,
     ttlMinutes: opts.ttlMinutes ?? 15,
-    fetchFn: fetchFn as unknown as typeof fetch,
+    fetchFn: fetchFn,
     snapshotRepo: repo,
   });
 }
@@ -283,22 +284,22 @@ describe('CbpAdapter — lane type mapping', () => {
   });
 
   it('B2.1-a: maps passenger_vehicle_lanes.standard_lanes → general', () => {
-    const lane = lanes.find(l => l.cbpPortNumber === 240201 && l.laneType === LaneType.General);
+    const lane = lanes.find((l) => l.cbpPortNumber === 240201 && l.laneType === LaneType.General);
     expect(lane).toBeDefined();
   });
 
   it('B2.1-b: maps passenger_vehicle_lanes.NEXUS_SENTRI_lanes → sentri', () => {
-    const lane = lanes.find(l => l.cbpPortNumber === 240201 && l.laneType === LaneType.Sentri);
+    const lane = lanes.find((l) => l.cbpPortNumber === 240201 && l.laneType === LaneType.Sentri);
     expect(lane).toBeDefined();
   });
 
   it('B2.1-c: maps passenger_vehicle_lanes.ready_lanes → ready_lane', () => {
-    const lane = lanes.find(l => l.cbpPortNumber === 240201 && l.laneType === LaneType.ReadyLane);
+    const lane = lanes.find((l) => l.cbpPortNumber === 240201 && l.laneType === LaneType.ReadyLane);
     expect(lane).toBeDefined();
   });
 
   it('B2.1-d: maps pedestrian_lanes.standard_lanes → pedestrian', () => {
-    const lane = lanes.find(l => l.cbpPortNumber === 240201 && l.laneType === LaneType.Pedestrian);
+    const lane = lanes.find((l) => l.cbpPortNumber === 240201 && l.laneType === LaneType.Pedestrian);
     expect(lane).toBeDefined();
   });
 });
@@ -317,24 +318,24 @@ describe('CbpAdapter — delay_minutes parsing', () => {
   });
 
   it('B2.1-e: numeric string "10" → delayMinutes 10 (integer)', () => {
-    const lane = lanes.find(l => l.cbpPortNumber === 240201 && l.laneType === LaneType.General);
+    const lane = lanes.find((l) => l.cbpPortNumber === 240201 && l.laneType === LaneType.General);
     expect(lane?.delayMinutes).toBe(10);
   });
 
   it('B2.1-f: empty string "" → delayMinutes null (NOT 0)', () => {
-    const lane = lanes.find(l => l.cbpPortNumber === 240201 && l.laneType === LaneType.Sentri);
+    const lane = lanes.find((l) => l.cbpPortNumber === 240201 && l.laneType === LaneType.Sentri);
     expect(lane?.delayMinutes).toBeNull();
     expect(lane?.delayMinutes).not.toBe(0);
   });
 
   it('B2.1-g: "N/A" string → delayMinutes null (NOT 0)', () => {
-    const lane = lanes.find(l => l.cbpPortNumber === 240201 && l.laneType === LaneType.ReadyLane);
+    const lane = lanes.find((l) => l.cbpPortNumber === 240201 && l.laneType === LaneType.ReadyLane);
     expect(lane?.delayMinutes).toBeNull();
     expect(lane?.delayMinutes).not.toBe(0);
   });
 
   it('B2.1-h: "0" numeric string → delayMinutes 0 (not null)', () => {
-    const lane = lanes.find(l => l.cbpPortNumber === 240202 && l.laneType === LaneType.Sentri);
+    const lane = lanes.find((l) => l.cbpPortNumber === 240202 && l.laneType === LaneType.Sentri);
     expect(lane?.delayMinutes).toBe(0);
   });
 });
@@ -353,12 +354,12 @@ describe('CbpAdapter — lanes_open parsing', () => {
   });
 
   it('B2.1-i: numeric string "5" → lanesOpen 5', () => {
-    const lane = lanes.find(l => l.cbpPortNumber === 240201 && l.laneType === LaneType.General);
+    const lane = lanes.find((l) => l.cbpPortNumber === 240201 && l.laneType === LaneType.General);
     expect(lane?.lanesOpen).toBe(5);
   });
 
   it('B2.1-j: empty string "" → lanesOpen null', () => {
-    const lane = lanes.find(l => l.cbpPortNumber === 240201 && l.laneType === LaneType.ReadyLane);
+    const lane = lanes.find((l) => l.cbpPortNumber === 240201 && l.laneType === LaneType.ReadyLane);
     expect(lane?.lanesOpen).toBeNull();
   });
 });
@@ -377,30 +378,30 @@ describe('CbpAdapter — isOpen logic', () => {
   });
 
   it('B2.1-k: lane operational_status "Lanes Closed" → isOpen false', () => {
-    const lane = lanes.find(l => l.cbpPortNumber === 240201 && l.laneType === LaneType.Pedestrian);
+    const lane = lanes.find((l) => l.cbpPortNumber === 240201 && l.laneType === LaneType.Pedestrian);
     expect(lane?.isOpen).toBe(false);
     expect(lane?.operationalStatus).toBe('Lanes Closed');
   });
 
   it('B2.1-l: lane operational_status "N/A" → isOpen false (240203 ready_lane)', () => {
-    const lane = lanes.find(l => l.cbpPortNumber === 240203 && l.laneType === LaneType.ReadyLane);
+    const lane = lanes.find((l) => l.cbpPortNumber === 240203 && l.laneType === LaneType.ReadyLane);
     // port_status is "Closed" for 240203, so isOpen is false regardless
     expect(lane?.isOpen).toBe(false);
   });
 
   it('B2.1-m: port_status "Closed" → ALL lanes for that port are isOpen false', () => {
-    const portLanes = lanes.filter(l => l.cbpPortNumber === 240203);
+    const portLanes = lanes.filter((l) => l.cbpPortNumber === 240203);
     expect(portLanes.length).toBe(4); // general, sentri, ready_lane, pedestrian
-    portLanes.forEach(l => expect(l.isOpen).toBe(false));
+    portLanes.forEach((l) => expect(l.isOpen).toBe(false));
   });
 
   it('B2.1-n: normal open port + delay status → isOpen true', () => {
-    const lane = lanes.find(l => l.cbpPortNumber === 240201 && l.laneType === LaneType.General);
+    const lane = lanes.find((l) => l.cbpPortNumber === 240201 && l.laneType === LaneType.General);
     expect(lane?.isOpen).toBe(true);
   });
 
   it('B2.1-o: operational_status "no delay" → isOpen true', () => {
-    const lane = lanes.find(l => l.cbpPortNumber === 240201 && l.laneType === LaneType.Sentri);
+    const lane = lanes.find((l) => l.cbpPortNumber === 240201 && l.laneType === LaneType.Sentri);
     expect(lane?.isOpen).toBe(true);
   });
 });
@@ -414,7 +415,7 @@ describe('CbpAdapter — fetchedAt', () => {
     const repo = makeMockRepo();
     const adapter = makeAdapter(makeFetchMock(), repo);
     const lanes = await adapter.fetchAll(PORT_TO_BRIDGE, FIXED_NOW);
-    const lane = lanes.find(l => l.cbpPortNumber === 240201 && l.laneType === LaneType.General);
+    const lane = lanes.find((l) => l.cbpPortNumber === 240201 && l.laneType === LaneType.General);
     expect(lane?.fetchedAt).toEqual(FIXED_NOW);
   });
 });
@@ -428,7 +429,7 @@ describe('CbpAdapter — port filtering', () => {
     const repo = makeMockRepo();
     const adapter = makeAdapter(makeFetchMock(), repo);
     const lanes = await adapter.fetchAll(PORT_TO_BRIDGE, FIXED_NOW);
-    const unknownLanes = lanes.filter(l => l.cbpPortNumber === 999999);
+    const unknownLanes = lanes.filter((l) => l.cbpPortNumber === 999999);
     expect(unknownLanes).toHaveLength(0);
   });
 
@@ -450,7 +451,7 @@ describe('CbpAdapter — sourceUpdateTimeRaw', () => {
     const repo = makeMockRepo();
     const adapter = makeAdapter(makeFetchMock(), repo);
     const lanes = await adapter.fetchAll(PORT_TO_BRIDGE, FIXED_NOW);
-    const lane = lanes.find(l => l.cbpPortNumber === 240201 && l.laneType === LaneType.General);
+    const lane = lanes.find((l) => l.cbpPortNumber === 240201 && l.laneType === LaneType.General);
     expect(lane?.sourceUpdateTimeRaw).toBe('At 2:00 pm EDT');
   });
 
@@ -458,7 +459,7 @@ describe('CbpAdapter — sourceUpdateTimeRaw', () => {
     const repo = makeMockRepo();
     const adapter = makeAdapter(makeFetchMock(), repo);
     const lanes = await adapter.fetchAll(PORT_TO_BRIDGE, FIXED_NOW);
-    const lane = lanes.find(l => l.cbpPortNumber === 240201 && l.laneType === LaneType.ReadyLane);
+    const lane = lanes.find((l) => l.cbpPortNumber === 240201 && l.laneType === LaneType.ReadyLane);
     expect(lane?.sourceUpdateTimeRaw).toBe('');
   });
 });
@@ -472,7 +473,7 @@ describe('CbpAdapter — port→bridge mapping', () => {
     const repo = makeMockRepo();
     const adapter = makeAdapter(makeFetchMock(), repo);
     const lanes = await adapter.fetchAll(PORT_TO_BRIDGE, FIXED_NOW);
-    const lane = lanes.find(l => l.cbpPortNumber === 240201);
+    const lane = lanes.find((l) => l.cbpPortNumber === 240201);
     expect(lane?.cbpPortNumber).toBe(240201);
   });
 });
@@ -495,20 +496,17 @@ describe('CbpAdapter — persistence on successful fetch', () => {
     const adapter = makeAdapter(makeFetchMock(), repo);
     await adapter.fetchAll(PORT_TO_BRIDGE, FIXED_NOW);
 
-    const savedSnapshots = repo.save.mock.calls.map(call => call[0]);
-    const snapshot = savedSnapshots.find(
-      (s: { bridgeId: string; laneType: LaneType }) =>
-        s.bridgeId === 'bridge-uuid-1' && s.laneType === LaneType.General,
-    );
+    const savedSnapshots = (repo.save.mock.calls as Array<[CbpSnapshot]>).map(([snapshot]) => snapshot);
+    const snapshot = savedSnapshots.find((s) => s.bridgeId === 'bridge-uuid-1' && s.laneType === LaneType.General);
 
     expect(snapshot).toBeDefined();
-    expect(snapshot.bridgeId).toBe('bridge-uuid-1');
-    expect(snapshot.laneType).toBe(LaneType.General);
-    expect(snapshot.delayMinutes).toBe(10);
-    expect(snapshot.lanesOpen).toBe(5);
-    expect(snapshot.operationalStatus).toBe('delay');
-    expect(snapshot.isOpen).toBe(true);
-    expect(snapshot.fetchedAt).toEqual(FIXED_NOW);
+    expect(snapshot!.bridgeId).toBe('bridge-uuid-1');
+    expect(snapshot!.laneType).toBe(LaneType.General);
+    expect(snapshot!.delayMinutes).toBe(10);
+    expect(snapshot!.lanesOpen).toBe(5);
+    expect(snapshot!.operationalStatus).toBe('delay');
+    expect(snapshot!.isOpen).toBe(true);
+    expect(snapshot!.fetchedAt).toEqual(FIXED_NOW);
   });
 
   it('B2.2-d: repo.save NOT called when fetch fails', async () => {
@@ -529,10 +527,17 @@ describe('CbpAdapter — TTL / fresh snapshots', () => {
     // Full coverage required: every bridge in PORT_TO_BRIDGE × every LaneType.
     // PORT_TO_BRIDGE has 6 bridges → 6 × 4 = 24 rows needed.
     const freshFetchedAt = new Date(FIXED_NOW.getTime() - 5 * 60_000);
-    const allBridgeIds = ['bridge-uuid-1', 'bridge-uuid-2', 'bridge-uuid-3', 'bridge-uuid-4', 'bridge-uuid-5', 'bridge-uuid-6'];
+    const allBridgeIds = [
+      'bridge-uuid-1',
+      'bridge-uuid-2',
+      'bridge-uuid-3',
+      'bridge-uuid-4',
+      'bridge-uuid-5',
+      'bridge-uuid-6',
+    ];
     const allLanes = [LaneType.General, LaneType.Sentri, LaneType.ReadyLane, LaneType.Pedestrian];
-    const fullRows: SnapshotRow[] = allBridgeIds.flatMap(bridgeId =>
-      allLanes.map(laneType => ({
+    const fullRows: SnapshotRow[] = allBridgeIds.flatMap((bridgeId) =>
+      allLanes.map((laneType) => ({
         bridgeId,
         laneType,
         fetchedAt: freshFetchedAt,
@@ -555,10 +560,17 @@ describe('CbpAdapter — TTL / fresh snapshots', () => {
   it('B2.2-f: full-coverage cache but ALL stale (>TTL) → fetch IS called', async () => {
     // All 24 rows present but all stale → refresh triggered
     const staleFetchedAt = new Date(FIXED_NOW.getTime() - 20 * 60_000);
-    const allBridgeIds = ['bridge-uuid-1', 'bridge-uuid-2', 'bridge-uuid-3', 'bridge-uuid-4', 'bridge-uuid-5', 'bridge-uuid-6'];
+    const allBridgeIds = [
+      'bridge-uuid-1',
+      'bridge-uuid-2',
+      'bridge-uuid-3',
+      'bridge-uuid-4',
+      'bridge-uuid-5',
+      'bridge-uuid-6',
+    ];
     const allLanes = [LaneType.General, LaneType.Sentri, LaneType.ReadyLane, LaneType.Pedestrian];
-    const staleFullRows: SnapshotRow[] = allBridgeIds.flatMap(bridgeId =>
-      allLanes.map(laneType => ({
+    const staleFullRows: SnapshotRow[] = allBridgeIds.flatMap((bridgeId) =>
+      allLanes.map((laneType) => ({
         bridgeId,
         laneType,
         fetchedAt: staleFetchedAt,
@@ -587,8 +599,26 @@ describe('CbpAdapter — stale fallback on fetch failure', () => {
   it('B2.2-g: fetch throws + prior snapshot exists → returns snapshot with sourceStale true, no throw', async () => {
     const staleFetchedAt = new Date(FIXED_NOW.getTime() - 20 * 60_000);
     const staleRows: SnapshotRow[] = [
-      { bridgeId: 'bridge-uuid-1', laneType: LaneType.General, fetchedAt: staleFetchedAt, delayMinutes: 10, lanesOpen: 3, operationalStatus: 'delay', isOpen: true, sourceUpdateTimeRaw: '' },
-      { bridgeId: 'bridge-uuid-1', laneType: LaneType.Sentri, fetchedAt: staleFetchedAt, delayMinutes: 5, lanesOpen: 2, operationalStatus: 'delay', isOpen: true, sourceUpdateTimeRaw: '' },
+      {
+        bridgeId: 'bridge-uuid-1',
+        laneType: LaneType.General,
+        fetchedAt: staleFetchedAt,
+        delayMinutes: 10,
+        lanesOpen: 3,
+        operationalStatus: 'delay',
+        isOpen: true,
+        sourceUpdateTimeRaw: '',
+      },
+      {
+        bridgeId: 'bridge-uuid-1',
+        laneType: LaneType.Sentri,
+        fetchedAt: staleFetchedAt,
+        delayMinutes: 5,
+        lanesOpen: 2,
+        operationalStatus: 'delay',
+        isOpen: true,
+        sourceUpdateTimeRaw: '',
+      },
     ];
     const repo = makeMockRepo(staleRows);
     const adapter = makeAdapter(makeFailingFetchMock(), repo, { ttlMinutes: 15 });
@@ -651,7 +681,7 @@ describe('CbpAdapter — HTTP error handling', () => {
     });
 
     const repo = makeMockRepo([]);
-    const adapter = makeAdapter(badFetch as unknown as jest.Mock, repo, { ttlMinutes: 15 });
+    const adapter = makeAdapter(badFetch, repo, { ttlMinutes: 15 });
 
     const result = await adapter.getLanes(PORT_TO_BRIDGE, FIXED_NOW);
     expect(result.sourceStale).toBe(true);
@@ -698,10 +728,10 @@ describe('CbpAdapter — stale fallback preserves snapshot values (GATE-FIX 1)',
     expect(result.lanes).toHaveLength(1);
 
     const lane = result.lanes[0];
-    expect(lane.delayMinutes).toBe(42);           // NOT null — must come from snapshot
-    expect(lane.lanesOpen).toBe(3);               // NOT null
+    expect(lane.delayMinutes).toBe(42); // NOT null — must come from snapshot
+    expect(lane.lanesOpen).toBe(3); // NOT null
     expect(lane.operationalStatus).toBe('delay'); // NOT ''
-    expect(lane.isOpen).toBe(true);               // NOT false (default)
+    expect(lane.isOpen).toBe(true); // NOT false (default)
     expect(lane.sourceUpdateTimeRaw).toBe('At 1:00 pm EDT'); // NOT ''
     expect(lane.fetchedAt).toEqual(staleFetchedAt);
   });
@@ -728,7 +758,7 @@ describe('CbpAdapter — stale fallback preserves snapshot values (GATE-FIX 1)',
     const result = await adapter.getLanes(PORT_TO_BRIDGE, FIXED_NOW);
 
     expect(result.sourceStale).toBe(true);
-    const lane = result.lanes.find(l => l.laneType === LaneType.Pedestrian);
+    const lane = result.lanes.find((l) => l.laneType === LaneType.Pedestrian);
     expect(lane?.operationalStatus).toBe('Lanes Closed'); // proves real value, not default ''
     expect(lane?.isOpen).toBe(false);
   });
@@ -744,10 +774,46 @@ describe('CbpAdapter — partial cache triggers refresh (GATE-FIX 2)', () => {
     // Cache has only 4 rows for bridge-uuid-1 → partial → must attempt refresh.
     const freshFetchedAt = new Date(FIXED_NOW.getTime() - 5 * 60_000); // within TTL
     const partialRows: SnapshotRow[] = [
-      { bridgeId: 'bridge-uuid-1', laneType: LaneType.General,    fetchedAt: freshFetchedAt, delayMinutes: 10, lanesOpen: 5, operationalStatus: 'delay', isOpen: true,  sourceUpdateTimeRaw: '' },
-      { bridgeId: 'bridge-uuid-1', laneType: LaneType.Sentri,     fetchedAt: freshFetchedAt, delayMinutes: null, lanesOpen: 2, operationalStatus: 'no delay', isOpen: true, sourceUpdateTimeRaw: '' },
-      { bridgeId: 'bridge-uuid-1', laneType: LaneType.ReadyLane,  fetchedAt: freshFetchedAt, delayMinutes: null, lanesOpen: null, operationalStatus: 'no delay', isOpen: true, sourceUpdateTimeRaw: '' },
-      { bridgeId: 'bridge-uuid-1', laneType: LaneType.Pedestrian, fetchedAt: freshFetchedAt, delayMinutes: null, lanesOpen: null, operationalStatus: 'no delay', isOpen: true, sourceUpdateTimeRaw: '' },
+      {
+        bridgeId: 'bridge-uuid-1',
+        laneType: LaneType.General,
+        fetchedAt: freshFetchedAt,
+        delayMinutes: 10,
+        lanesOpen: 5,
+        operationalStatus: 'delay',
+        isOpen: true,
+        sourceUpdateTimeRaw: '',
+      },
+      {
+        bridgeId: 'bridge-uuid-1',
+        laneType: LaneType.Sentri,
+        fetchedAt: freshFetchedAt,
+        delayMinutes: null,
+        lanesOpen: 2,
+        operationalStatus: 'no delay',
+        isOpen: true,
+        sourceUpdateTimeRaw: '',
+      },
+      {
+        bridgeId: 'bridge-uuid-1',
+        laneType: LaneType.ReadyLane,
+        fetchedAt: freshFetchedAt,
+        delayMinutes: null,
+        lanesOpen: null,
+        operationalStatus: 'no delay',
+        isOpen: true,
+        sourceUpdateTimeRaw: '',
+      },
+      {
+        bridgeId: 'bridge-uuid-1',
+        laneType: LaneType.Pedestrian,
+        fetchedAt: freshFetchedAt,
+        delayMinutes: null,
+        lanesOpen: null,
+        operationalStatus: 'no delay',
+        isOpen: true,
+        sourceUpdateTimeRaw: '',
+      },
     ];
     const repo = makeMockRepo(partialRows);
     const fetchFn = makeFetchMock();
@@ -762,10 +828,17 @@ describe('CbpAdapter — partial cache triggers refresh (GATE-FIX 2)', () => {
   it('GF2-b: full coverage (all bridge×lane combos for portToBridgeMap) + all fresh → fetch NOT called', async () => {
     // PORT_TO_BRIDGE = 6 bridges × 4 lanes = 24 expected combos.
     const freshFetchedAt = new Date(FIXED_NOW.getTime() - 5 * 60_000);
-    const allBridgeIds = ['bridge-uuid-1', 'bridge-uuid-2', 'bridge-uuid-3', 'bridge-uuid-4', 'bridge-uuid-5', 'bridge-uuid-6'];
+    const allBridgeIds = [
+      'bridge-uuid-1',
+      'bridge-uuid-2',
+      'bridge-uuid-3',
+      'bridge-uuid-4',
+      'bridge-uuid-5',
+      'bridge-uuid-6',
+    ];
     const allLaneTypes = [LaneType.General, LaneType.Sentri, LaneType.ReadyLane, LaneType.Pedestrian];
-    const fullRows: SnapshotRow[] = allBridgeIds.flatMap(bridgeId =>
-      allLaneTypes.map(laneType => ({
+    const fullRows: SnapshotRow[] = allBridgeIds.flatMap((bridgeId) =>
+      allLaneTypes.map((laneType) => ({
         bridgeId,
         laneType,
         fetchedAt: freshFetchedAt,
@@ -817,9 +890,12 @@ describe('CbpAdapter — null/undefined field parsing (WARNING 5)', () => {
       },
     ];
     const repo = makeMockRepo();
-    const adapter = makeAdapter(jest.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve(portWithNullDelay) }), repo);
+    const adapter = makeAdapter(
+      jest.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve(portWithNullDelay) }),
+      repo,
+    );
     const lanes = await adapter.fetchAll(PORT_TO_BRIDGE, FIXED_NOW);
-    const lane = lanes.find(l => l.cbpPortNumber === 240201 && l.laneType === LaneType.General);
+    const lane = lanes.find((l) => l.cbpPortNumber === 240201 && l.laneType === LaneType.General);
     expect(lane?.delayMinutes).toBeNull();
   });
 
@@ -848,9 +924,12 @@ describe('CbpAdapter — null/undefined field parsing (WARNING 5)', () => {
       },
     ];
     const repo = makeMockRepo();
-    const adapter = makeAdapter(jest.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve(portWithUndefinedDelay) }), repo);
+    const adapter = makeAdapter(
+      jest.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve(portWithUndefinedDelay) }),
+      repo,
+    );
     const lanes = await adapter.fetchAll(PORT_TO_BRIDGE, FIXED_NOW);
-    const lane = lanes.find(l => l.cbpPortNumber === 240201 && l.laneType === LaneType.General);
+    const lane = lanes.find((l) => l.cbpPortNumber === 240201 && l.laneType === LaneType.General);
     expect(lane?.delayMinutes).toBeNull();
   });
 
@@ -879,9 +958,12 @@ describe('CbpAdapter — null/undefined field parsing (WARNING 5)', () => {
       },
     ];
     const repo = makeMockRepo();
-    const adapter = makeAdapter(jest.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve(portWithNullLanesOpen) }), repo);
+    const adapter = makeAdapter(
+      jest.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve(portWithNullLanesOpen) }),
+      repo,
+    );
     const lanes = await adapter.fetchAll(PORT_TO_BRIDGE, FIXED_NOW);
-    const lane = lanes.find(l => l.cbpPortNumber === 240201 && l.laneType === LaneType.General);
+    const lane = lanes.find((l) => l.cbpPortNumber === 240201 && l.laneType === LaneType.General);
     expect(lane?.lanesOpen).toBeNull();
   });
 });
@@ -899,7 +981,7 @@ describe('CbpAdapter — AbortSignal passed to fetch (WARNING 6)', () => {
     await adapter.fetchAll(PORT_TO_BRIDGE, FIXED_NOW);
 
     expect(fetchFn).toHaveBeenCalledTimes(1);
-    const [_url, init] = fetchFn.mock.calls[0] as [string, RequestInit];
+    const [, init] = fetchFn.mock.calls[0] as [string, RequestInit];
     expect(init).toBeDefined();
     expect(init.signal).toBeDefined();
     // Signal must be an AbortSignal

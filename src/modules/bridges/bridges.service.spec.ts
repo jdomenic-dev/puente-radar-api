@@ -167,7 +167,11 @@ describe('BridgesService', () => {
       const updated = { ...existing, cbpPortNumber: 240201 };
       repo.save!.mockResolvedValue(updated);
 
-      const result = await service.upsertBySlug({ name: 'Puente Libre / Córdova-Américas', slug: 'puente-libre', cbpPortNumber: 240201 });
+      const result = await service.upsertBySlug({
+        name: 'Puente Libre / Córdova-Américas',
+        slug: 'puente-libre',
+        cbpPortNumber: 240201,
+      });
 
       expect(repo.save).toHaveBeenCalled();
       expect(result.cbpPortNumber).toBe(240201);
@@ -193,7 +197,12 @@ describe('BridgesService', () => {
       // save() will return whatever the entity holds at call time
       repo.save!.mockImplementation((entity: Bridge) => Promise.resolve({ ...entity }));
 
-      const result = await service.upsertBySlug({ name: 'Puente Libre / Córdova-Américas', slug: 'puente-libre', status: BridgeStatus.Low, cbpPortNumber: 240201 });
+      const result = await service.upsertBySlug({
+        name: 'Puente Libre / Córdova-Américas',
+        slug: 'puente-libre',
+        status: BridgeStatus.Low,
+        cbpPortNumber: 240201,
+      });
 
       // cbpPortNumber IS updated; status is NOT reset
       expect(result.cbpPortNumber).toBe(240201);

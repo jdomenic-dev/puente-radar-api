@@ -21,7 +21,7 @@
  *     confidence: 100, CBP-only ceiling → min(100, 70) = 70 → MEDIUM ✓
  */
 
-import { calculateEstimate, CalculatorInput, CalculatorOutput } from './estimate.calculator.js';
+import { calculateEstimate, CalculatorInput } from './estimate.calculator.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -41,34 +41,26 @@ function input(overrides: Partial<CalculatorInput> = {}): CalculatorInput {
 
 describe('EstimateCalculator — cold-start (CBP only)', () => {
   it('B1.1-a: cold-start → valid estimate, NOT unavailable', () => {
-    const result = calculateEstimate(
-      input({ official: { wait: 45, fresh: true, closed: false } }),
-    );
+    const result = calculateEstimate(input({ official: { wait: 45, fresh: true, closed: false } }));
 
     expect(result.estimateUnavailable).toBeUndefined();
     expect(result.estimatedWaitMinutes).toBe(45);
   });
 
   it('B1.1-b: cold-start → confidence score is exactly 70 (CBP-only ceiling)', () => {
-    const result = calculateEstimate(
-      input({ official: { wait: 45, fresh: true, closed: false } }),
-    );
+    const result = calculateEstimate(input({ official: { wait: 45, fresh: true, closed: false } }));
 
     expect(result.confidenceScore).toBe(70);
   });
 
   it('B1.1-c: cold-start → confidence label is MEDIUM (50-79 band)', () => {
-    const result = calculateEstimate(
-      input({ official: { wait: 45, fresh: true, closed: false } }),
-    );
+    const result = calculateEstimate(input({ official: { wait: 45, fresh: true, closed: false } }));
 
     expect(result.confidence).toBe('medium');
   });
 
   it('B1.1-d: cold-start → sourcesUsed contains "cbp"', () => {
-    const result = calculateEstimate(
-      input({ official: { wait: 45, fresh: true, closed: false } }),
-    );
+    const result = calculateEstimate(input({ official: { wait: 45, fresh: true, closed: false } }));
 
     expect(result.sourcesUsed).toContain('cbp');
   });
@@ -76,9 +68,7 @@ describe('EstimateCalculator — cold-start (CBP only)', () => {
 
 describe('EstimateCalculator — neither source usable', () => {
   it('B1.1-e: official.closed and no community → estimateUnavailable: laneClosed', () => {
-    const result = calculateEstimate(
-      input({ official: { wait: 0, fresh: false, closed: true } }),
-    );
+    const result = calculateEstimate(input({ official: { wait: 0, fresh: false, closed: true } }));
 
     expect(result.estimateUnavailable).toBe('laneClosed');
     expect(result.estimatedWaitMinutes).toBeUndefined();
@@ -92,9 +82,7 @@ describe('EstimateCalculator — neither source usable', () => {
   });
 
   it('B1.1-g: no official and community sampleSize=0 → estimateUnavailable: noData', () => {
-    const result = calculateEstimate(
-      input({ community: { value: 30, sampleSize: 0 } }),
-    );
+    const result = calculateEstimate(input({ community: { value: 30, sampleSize: 0 } }));
 
     expect(result.estimateUnavailable).toBe('noData');
   });
@@ -102,44 +90,32 @@ describe('EstimateCalculator — neither source usable', () => {
 
 describe('EstimateCalculator — status thresholds', () => {
   it('B1.1-h: wait=30 → status low', () => {
-    const result = calculateEstimate(
-      input({ official: { wait: 30, fresh: true, closed: false } }),
-    );
+    const result = calculateEstimate(input({ official: { wait: 30, fresh: true, closed: false } }));
     expect(result.status).toBe('low');
   });
 
   it('B1.1-i: wait=31 → status medium', () => {
-    const result = calculateEstimate(
-      input({ official: { wait: 31, fresh: true, closed: false } }),
-    );
+    const result = calculateEstimate(input({ official: { wait: 31, fresh: true, closed: false } }));
     expect(result.status).toBe('medium');
   });
 
   it('B1.1-j: wait=60 → status medium', () => {
-    const result = calculateEstimate(
-      input({ official: { wait: 60, fresh: true, closed: false } }),
-    );
+    const result = calculateEstimate(input({ official: { wait: 60, fresh: true, closed: false } }));
     expect(result.status).toBe('medium');
   });
 
   it('B1.1-k: wait=61 → status high', () => {
-    const result = calculateEstimate(
-      input({ official: { wait: 61, fresh: true, closed: false } }),
-    );
+    const result = calculateEstimate(input({ official: { wait: 61, fresh: true, closed: false } }));
     expect(result.status).toBe('high');
   });
 
   it('B1.1-l: wait=120 → status high', () => {
-    const result = calculateEstimate(
-      input({ official: { wait: 120, fresh: true, closed: false } }),
-    );
+    const result = calculateEstimate(input({ official: { wait: 120, fresh: true, closed: false } }));
     expect(result.status).toBe('high');
   });
 
   it('B1.1-m: wait=121 → status saturated', () => {
-    const result = calculateEstimate(
-      input({ official: { wait: 121, fresh: true, closed: false } }),
-    );
+    const result = calculateEstimate(input({ official: { wait: 121, fresh: true, closed: false } }));
     expect(result.status).toBe('saturated');
   });
 });
@@ -150,16 +126,12 @@ describe('EstimateCalculator — confidence penalties', () => {
     // cbpStale adds -20 penalty before ceiling: score = 100 − 20 = 80, then min(80, 70) = 70
     // Wait: ceiling applies AFTER penalties? Let's clarify: penalties first then ceiling.
     // score = 100 − 20 (stale) = 80; cbp-only ceiling → min(80, 70) = 70
-    const result = calculateEstimate(
-      input({ official: { wait: 45, fresh: true, closed: false }, cbpStale: true }),
-    );
+    const result = calculateEstimate(input({ official: { wait: 45, fresh: true, closed: false }, cbpStale: true }));
     expect(result.confidenceScore).toBe(70); // ceiling still dominates
   });
 
   it('B1.1-o: sourceStale=true → -15 penalty (CBP-only: min(85,70)=70)', () => {
-    const result = calculateEstimate(
-      input({ official: { wait: 45, fresh: true, closed: false }, sourceStale: true }),
-    );
+    const result = calculateEstimate(input({ official: { wait: 45, fresh: true, closed: false }, sourceStale: true }));
     expect(result.confidenceScore).toBe(70); // min(85, 70)
   });
 
@@ -199,9 +171,7 @@ describe('EstimateCalculator — confidence penalties', () => {
 
   it('B1.1-s: closed lane → -25 penalty (CBP-only ceiling not relevant since unavailable)', () => {
     // official.closed → unavailable (laneClosed); confidence computed anyway for reporting
-    const result = calculateEstimate(
-      input({ official: { wait: 0, fresh: false, closed: true } }),
-    );
+    const result = calculateEstimate(input({ official: { wait: 0, fresh: false, closed: true } }));
     // score = 100 − 25 = 75 (but CBP-only ceiling → min(75,70)=70 since no community)
     expect(result.confidenceScore).toBe(70);
   });
@@ -300,9 +270,7 @@ describe('EstimateCalculator — admin additive', () => {
   });
 
   it('B1.2-f: admin=undefined → not active, additive term=0', () => {
-    const result = calculateEstimate(
-      input({ official: { wait: 40, fresh: true, closed: false } }),
-    );
+    const result = calculateEstimate(input({ official: { wait: 40, fresh: true, closed: false } }));
 
     expect(result.estimatedWaitMinutes).toBe(40);
     expect(result.sourcesUsed).not.toContain('admin');
@@ -410,18 +378,14 @@ describe('EstimateCalculator — community-only (official closed or absent)', ()
   });
 
   it('B1.2-n: official absent, community present → uses community value', () => {
-    const result = calculateEstimate(
-      input({ community: { value: 25, sampleSize: 4 } }),
-    );
+    const result = calculateEstimate(input({ community: { value: 25, sampleSize: 4 } }));
 
     expect(result.estimatedWaitMinutes).toBe(25);
     expect(result.estimateUnavailable).toBeUndefined();
   });
 
   it('B1.2-o: community-only → sourcesUsed contains "community" not "cbp"', () => {
-    const result = calculateEstimate(
-      input({ community: { value: 25, sampleSize: 4 } }),
-    );
+    const result = calculateEstimate(input({ community: { value: 25, sampleSize: 4 } }));
 
     expect(result.sourcesUsed).toContain('community');
     expect(result.sourcesUsed).not.toContain('cbp');

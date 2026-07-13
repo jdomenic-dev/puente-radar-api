@@ -41,8 +41,12 @@ export class CreateReportDto {
   @MaxLength(300)
   comment?: string;
 
-  @ApiPropertyOptional({ description: 'Optional anonymous device identifier' })
+  @ApiPropertyOptional({
+    description: 'Optional anonymous device identifier (max 255 chars, safe characters only)',
+    maxLength: 255,
+  })
   @IsOptional()
   @IsString()
+  @MaxLength(255)
   anonymousDeviceId?: string;
 }

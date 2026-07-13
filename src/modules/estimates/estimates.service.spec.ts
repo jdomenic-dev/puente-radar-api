@@ -46,7 +46,7 @@ function makeBridge(id: string, name: string, cbpPortNumber: number | null): Bri
     sortOrder: 1,
     lastUpdatedAt: null,
     reports: [],
-  } as Bridge;
+  };
 }
 
 function makeLane(
@@ -177,10 +177,7 @@ describe('EstimatesService', () => {
     it('calls cbpAdapter.getLanes exactly once even with multiple bridges', async () => {
       mockBridgesService.findActive.mockResolvedValue([BRIDGE_A, BRIDGE_B]);
       mockCbpAdapter.getLanes.mockResolvedValue({
-        lanes: [
-          makeLane(PORT_A, LaneType.General, 30),
-          makeLane(PORT_B, LaneType.General, 45),
-        ],
+        lanes: [makeLane(PORT_A, LaneType.General, 30), makeLane(PORT_B, LaneType.General, 45)],
         sourceStale: false,
       } satisfies GetLanesResult);
       // findUsableReports called once per bridge
@@ -230,10 +227,7 @@ describe('EstimatesService', () => {
       // Expected: Bridge A wins (lower wait, both non-low-confidence), bestOptionFallback=false.
       mockBridgesService.findActive.mockResolvedValue([BRIDGE_A, BRIDGE_B]);
       mockCbpAdapter.getLanes.mockResolvedValue({
-        lanes: [
-          makeLane(PORT_A, LaneType.General, 20),
-          makeLane(PORT_B, LaneType.General, 50),
-        ],
+        lanes: [makeLane(PORT_A, LaneType.General, 20), makeLane(PORT_B, LaneType.General, 50)],
         sourceStale: false,
       } satisfies GetLanesResult);
       mockReportsService.findUsableReports.mockResolvedValue({ sampleSize: 0, weightedMean: null });
@@ -241,7 +235,7 @@ describe('EstimatesService', () => {
 
       const results = await service.getEstimates(LaneType.General);
 
-      const best = results.find(r => r.isBestOption);
+      const best = results.find((r) => r.isBestOption);
       expect(best).toBeDefined();
       expect(best!.bridgeId).toBe(BRIDGE_A_ID);
       expect(best!.bestOptionFallback).toBe(false);
@@ -275,8 +269,8 @@ describe('EstimatesService', () => {
       mockBridgesService.findActive.mockResolvedValue([BRIDGE_A, BRIDGE_B]);
       mockCbpAdapter.getLanes.mockResolvedValue({
         lanes: [
-          makeLane(PORT_A, LaneType.General, 10),  // BRIDGE_A: lowest wait
-          makeLane(PORT_B, LaneType.General, 40),  // BRIDGE_B: higher wait
+          makeLane(PORT_A, LaneType.General, 10), // BRIDGE_A: lowest wait
+          makeLane(PORT_B, LaneType.General, 40), // BRIDGE_B: higher wait
         ],
         sourceStale: true, // -15 for all bridges
       } satisfies GetLanesResult);
@@ -293,24 +287,34 @@ describe('EstimatesService', () => {
       // Snapshot for BRIDGE_B is FRESH → cbpStale=false (no penalty)
       mockSnapshotRepository.findLatestPerBridgeLane.mockResolvedValue([
         {
-          bridgeId: BRIDGE_A_ID, laneType: LaneType.General,
+          bridgeId: BRIDGE_A_ID,
+          laneType: LaneType.General,
           fetchedAt: oldFetchedAt, // stale
-          delayMinutes: 10, lanesOpen: 3, operationalStatus: 'delay', isOpen: true, sourceUpdateTimeRaw: '',
+          delayMinutes: 10,
+          lanesOpen: 3,
+          operationalStatus: 'delay',
+          isOpen: true,
+          sourceUpdateTimeRaw: '',
         },
         {
-          bridgeId: BRIDGE_B_ID, laneType: LaneType.General,
+          bridgeId: BRIDGE_B_ID,
+          laneType: LaneType.General,
           fetchedAt: freshFetchedAt, // fresh
-          delayMinutes: 40, lanesOpen: 3, operationalStatus: 'delay', isOpen: true, sourceUpdateTimeRaw: '',
+          delayMinutes: 40,
+          lanesOpen: 3,
+          operationalStatus: 'delay',
+          isOpen: true,
+          sourceUpdateTimeRaw: '',
         },
       ]);
 
       const results = await service.getEstimates(LaneType.General);
 
-      const bridgeA = results.find(r => r.bridgeId === BRIDGE_A_ID)!;
-      const bridgeB = results.find(r => r.bridgeId === BRIDGE_B_ID)!;
+      const bridgeA = results.find((r) => r.bridgeId === BRIDGE_A_ID)!;
+      const bridgeB = results.find((r) => r.bridgeId === BRIDGE_B_ID)!;
 
       // Verify computed confidences are what the test is designed around
-      expect(bridgeA.confidence).toBe('low');    // score=30: 100-20-15-15-20
+      expect(bridgeA.confidence).toBe('low'); // score=30: 100-20-15-15-20
       expect(bridgeB.confidence).toBe('medium'); // score=70: min(100-15, 70) CBP-only ceiling
 
       // R3 assertion: low-confidence lowest is NOT chosen; medium-confidence higher-wait wins
@@ -327,10 +331,7 @@ describe('EstimatesService', () => {
       const oldFetchedAt = new Date('2025-06-20T09:00:00.000Z'); // year-old → stale → cbpStale=true
       mockBridgesService.findActive.mockResolvedValue([BRIDGE_A, BRIDGE_B]);
       mockCbpAdapter.getLanes.mockResolvedValue({
-        lanes: [
-          makeLane(PORT_A, LaneType.General, 10),
-          makeLane(PORT_B, LaneType.General, 20),
-        ],
+        lanes: [makeLane(PORT_A, LaneType.General, 10), makeLane(PORT_B, LaneType.General, 20)],
         sourceStale: true, // sourceStale: -15
       } satisfies GetLanesResult);
       // Both bridges get same community: sampleSize=1(-15), value=55
@@ -341,16 +342,34 @@ describe('EstimatesService', () => {
       mockAdjustmentRepository.find.mockResolvedValue([]);
       // Old snapshots → cbpStale=true (-20)
       mockSnapshotRepository.findLatestPerBridgeLane.mockResolvedValue([
-        { bridgeId: BRIDGE_A_ID, laneType: LaneType.General, fetchedAt: oldFetchedAt, delayMinutes: 10, lanesOpen: 3, operationalStatus: 'delay', isOpen: true, sourceUpdateTimeRaw: '' },
-        { bridgeId: BRIDGE_B_ID, laneType: LaneType.General, fetchedAt: oldFetchedAt, delayMinutes: 20, lanesOpen: 3, operationalStatus: 'delay', isOpen: true, sourceUpdateTimeRaw: '' },
+        {
+          bridgeId: BRIDGE_A_ID,
+          laneType: LaneType.General,
+          fetchedAt: oldFetchedAt,
+          delayMinutes: 10,
+          lanesOpen: 3,
+          operationalStatus: 'delay',
+          isOpen: true,
+          sourceUpdateTimeRaw: '',
+        },
+        {
+          bridgeId: BRIDGE_B_ID,
+          laneType: LaneType.General,
+          fetchedAt: oldFetchedAt,
+          delayMinutes: 20,
+          lanesOpen: 3,
+          operationalStatus: 'delay',
+          isOpen: true,
+          sourceUpdateTimeRaw: '',
+        },
       ]);
 
       const results = await service.getEstimates(LaneType.General);
 
-      const best = results.find(r => r.isBestOption);
+      const best = results.find((r) => r.isBestOption);
       expect(best).toBeDefined();
       // Score per bridge: 100-20-15-15-20=-70 → 30 → LOW → all low → fallback
-      expect(results.every(r => r.confidence === 'low')).toBe(true);
+      expect(results.every((r) => r.confidence === 'low')).toBe(true);
       expect(best!.bestOptionFallback).toBe(true);
       expect(best!.bridgeId).toBe(BRIDGE_A_ID); // lower wait (10 < 20)
     });
@@ -372,8 +391,8 @@ describe('EstimatesService', () => {
 
       const results = await service.getEstimates(LaneType.General);
 
-      const bridgeAEntry = results.find(r => r.bridgeId === BRIDGE_A_ID);
-      const bridgeBEntry = results.find(r => r.bridgeId === BRIDGE_B_ID);
+      const bridgeAEntry = results.find((r) => r.bridgeId === BRIDGE_A_ID);
+      const bridgeBEntry = results.find((r) => r.bridgeId === BRIDGE_B_ID);
 
       expect(bridgeAEntry!.isBestOption).toBe(false); // unavailable cannot be best
       expect(bridgeBEntry!.isBestOption).toBe(true);
@@ -398,16 +417,26 @@ describe('EstimatesService', () => {
       // Trend history: rowNumber=1 current, rowNumber=2 previous
       mockSnapshotRepository.findLatestTwoPerBridgeLane.mockResolvedValue([
         {
-          bridgeId: BRIDGE_A_ID, laneType: LaneType.General,
+          bridgeId: BRIDGE_A_ID,
+          laneType: LaneType.General,
           fetchedAt: new Date('2025-06-20T10:00:00.000Z'),
-          delayMinutes: 30, lanesOpen: 3, operationalStatus: 'delay',
-          isOpen: true, sourceUpdateTimeRaw: '', rowNumber: 1,
+          delayMinutes: 30,
+          lanesOpen: 3,
+          operationalStatus: 'delay',
+          isOpen: true,
+          sourceUpdateTimeRaw: '',
+          rowNumber: 1,
         },
         {
-          bridgeId: BRIDGE_A_ID, laneType: LaneType.General,
+          bridgeId: BRIDGE_A_ID,
+          laneType: LaneType.General,
           fetchedAt: new Date('2025-06-20T09:45:00.000Z'),
-          delayMinutes: 28, lanesOpen: 3, operationalStatus: 'delay',
-          isOpen: true, sourceUpdateTimeRaw: '', rowNumber: 2,
+          delayMinutes: 28,
+          lanesOpen: 3,
+          operationalStatus: 'delay',
+          isOpen: true,
+          sourceUpdateTimeRaw: '',
+          rowNumber: 2,
         },
       ]);
 
@@ -428,16 +457,26 @@ describe('EstimatesService', () => {
       mockSnapshotRepository.findLatestPerBridgeLane.mockResolvedValue([]);
       mockSnapshotRepository.findLatestTwoPerBridgeLane.mockResolvedValue([
         {
-          bridgeId: BRIDGE_A_ID, laneType: LaneType.General,
+          bridgeId: BRIDGE_A_ID,
+          laneType: LaneType.General,
           fetchedAt: new Date('2025-06-20T10:00:00.000Z'),
-          delayMinutes: 40, lanesOpen: 3, operationalStatus: 'delay',
-          isOpen: true, sourceUpdateTimeRaw: '', rowNumber: 1,
+          delayMinutes: 40,
+          lanesOpen: 3,
+          operationalStatus: 'delay',
+          isOpen: true,
+          sourceUpdateTimeRaw: '',
+          rowNumber: 1,
         },
         {
-          bridgeId: BRIDGE_A_ID, laneType: LaneType.General,
+          bridgeId: BRIDGE_A_ID,
+          laneType: LaneType.General,
           fetchedAt: new Date('2025-06-20T09:44:00.000Z'),
-          delayMinutes: 30, lanesOpen: 3, operationalStatus: 'delay', // previous
-          isOpen: true, sourceUpdateTimeRaw: '', rowNumber: 2,
+          delayMinutes: 30,
+          lanesOpen: 3,
+          operationalStatus: 'delay', // previous
+          isOpen: true,
+          sourceUpdateTimeRaw: '',
+          rowNumber: 2,
         },
       ]);
 
@@ -458,16 +497,26 @@ describe('EstimatesService', () => {
       mockSnapshotRepository.findLatestPerBridgeLane.mockResolvedValue([]);
       mockSnapshotRepository.findLatestTwoPerBridgeLane.mockResolvedValue([
         {
-          bridgeId: BRIDGE_A_ID, laneType: LaneType.General,
+          bridgeId: BRIDGE_A_ID,
+          laneType: LaneType.General,
           fetchedAt: new Date('2025-06-20T10:00:00.000Z'),
-          delayMinutes: 20, lanesOpen: 3, operationalStatus: 'delay',
-          isOpen: true, sourceUpdateTimeRaw: '', rowNumber: 1,
+          delayMinutes: 20,
+          lanesOpen: 3,
+          operationalStatus: 'delay',
+          isOpen: true,
+          sourceUpdateTimeRaw: '',
+          rowNumber: 1,
         },
         {
-          bridgeId: BRIDGE_A_ID, laneType: LaneType.General,
+          bridgeId: BRIDGE_A_ID,
+          laneType: LaneType.General,
           fetchedAt: new Date('2025-06-20T09:43:00.000Z'),
-          delayMinutes: 35, lanesOpen: 3, operationalStatus: 'delay', // previous
-          isOpen: true, sourceUpdateTimeRaw: '', rowNumber: 2,
+          delayMinutes: 35,
+          lanesOpen: 3,
+          operationalStatus: 'delay', // previous
+          isOpen: true,
+          sourceUpdateTimeRaw: '',
+          rowNumber: 2,
         },
       ]);
 
@@ -488,10 +537,15 @@ describe('EstimatesService', () => {
       // Only rowNumber=1, no rowNumber=2
       mockSnapshotRepository.findLatestTwoPerBridgeLane.mockResolvedValue([
         {
-          bridgeId: BRIDGE_A_ID, laneType: LaneType.General,
+          bridgeId: BRIDGE_A_ID,
+          laneType: LaneType.General,
           fetchedAt: new Date('2025-06-20T10:00:00.000Z'),
-          delayMinutes: 30, lanesOpen: 3, operationalStatus: 'delay',
-          isOpen: true, sourceUpdateTimeRaw: '', rowNumber: 1,
+          delayMinutes: 30,
+          lanesOpen: 3,
+          operationalStatus: 'delay',
+          isOpen: true,
+          sourceUpdateTimeRaw: '',
+          rowNumber: 1,
         },
       ]);
 

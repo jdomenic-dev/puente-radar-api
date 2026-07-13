@@ -1,0 +1,49 @@
+# Dependencies
+node_modules
+.pnpm-store
+
+# Build output
+dist
+coverage
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Git
+.git
+.gitignore
+
+# IDE and editor files
+.idea
+.vscode
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Test files
+test
+*.spec.ts
+*.e2e-spec.ts
+jest.config.js
+
+# Documentation (optional — remove if you want docs in the image)
+docs
+
+# Docker files (avoid invalidating cache)
+Dockerfile
+docker-compose*.yml
+.dockerignore
+
+# Bruno / local API client
+bruno

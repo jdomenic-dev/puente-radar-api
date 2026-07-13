@@ -6,12 +6,16 @@ export const typeormConfig: TypeOrmModuleAsyncOptions = {
   useFactory: (configService: ConfigService) => {
     const isProduction = configService.get<string>('NODE_ENV') === 'production';
 
-    // DATABASE_SYNC controls schema auto-sync. Defaults to false in production
-    // (safe), true in non-production environments.
-    // TODO: Replace synchronize with TypeORM migrations before deploying to production.
-    // Never set DATABASE_SYNC=true in production — data loss can occur.
+    // DATABASE_SYNC controls schema auto-sync. In production it is ALWAYS false.
+    // Migrations must be run explicitly before deployment.
+    // In non-production it defaults to true for convenience.
+    if (isProduction && configService.get<string>('DATABASE_SYNC') === 'true') {
+      throw new Error(
+        'DATABASE_SYNC=true is not allowed in production. Run migrations with "npm run migration:run" instead.',
+      );
+    }
     const syncEnv = configService.get<string>('DATABASE_SYNC');
-    const synchronize = syncEnv !== undefined ? syncEnv === 'true' : !isProduction;
+    const synchronize = isProduction ? false : syncEnv !== undefined ? syncEnv === 'true' : true;
 
     // DATABASE_LOGGING enables SQL query logging. Defaults to false in production.
     const loggingEnv = configService.get<string>('DATABASE_LOGGING');

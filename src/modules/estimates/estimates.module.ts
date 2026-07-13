@@ -31,11 +31,7 @@ import { CBP_CACHE } from './estimates.tokens.js';
 import type Redis from 'ioredis';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([CbpSnapshot, EstimateAdjustment]),
-    BridgesModule,
-    ReportsModule,
-  ],
+  imports: [TypeOrmModule.forFeature([CbpSnapshot, EstimateAdjustment]), BridgesModule, ReportsModule],
   controllers: [EstimatesController],
   providers: [
     // Custom snapshot repository — provides the DISTINCT ON findLatestPerBridgeLane query
@@ -62,11 +58,7 @@ import type Redis from 'ioredis';
     // CbpRedisCache — Redis-first cache; falls through to CbpAdapter when REDIS_URL not set
     {
       provide: CBP_CACHE,
-      useFactory: (
-        adapter: CbpAdapter,
-        redis: Redis | null,
-        configService: ConfigService,
-      ) => {
+      useFactory: (adapter: CbpAdapter, redis: Redis | null, configService: ConfigService) => {
         const ttlMinutes = configService.get<number>('CBP_TTL_MINUTES') ?? 15;
         return new CbpRedisCache(adapter, redis, ttlMinutes * 60);
       },

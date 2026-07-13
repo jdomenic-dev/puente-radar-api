@@ -14,13 +14,7 @@
  * injection into CbpAdapter.
  */
 
-import {
-  Column,
-  CreateDateColumn,
-  Entity,
-  PrimaryGeneratedColumn,
-  UpdateDateColumn,
-} from 'typeorm';
+import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
 import { LaneType } from '../../../common/enums/lane.enum.js';
 
 @Entity('cbp_snapshots')

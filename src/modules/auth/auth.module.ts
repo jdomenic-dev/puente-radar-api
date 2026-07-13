@@ -1,9 +1,19 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import { ApiKeyGuard } from '../../common/guards/api-key.guard.js';
 
 /**
- * AuthModule — placeholder boundary.
- * Reserves the auth seam without implementing real login, JWT, or session logic.
- * Real authentication will be implemented in a future change.
+ * AuthModule — minimal auth seam for the MVP.
+ *
+ * Currently provides:
+ *   - ApiKeyGuard: static key guard for admin endpoints.
+ *
+ * Real JWT/session authentication can be added later without changing
+ * the controllers that already rely on ApiKeyGuard.
  */
-@Module({})
+@Module({
+  imports: [ConfigModule],
+  providers: [ApiKeyGuard],
+  exports: [ApiKeyGuard],
+})
 export class AuthModule {}

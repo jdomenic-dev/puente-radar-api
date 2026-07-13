@@ -51,10 +51,7 @@ export class CbpRedisCache {
    * Redis miss → fetch via CbpAdapter → write all lanes to Redis → return fresh
    * Redis null → delegate entirely to CbpAdapter.getLanes() (PostgreSQL TTL)
    */
-  async getLanes(
-    portToBridgeMap: Map<number, string>,
-    now: Date,
-  ): Promise<GetLanesResult> {
+  async getLanes(portToBridgeMap: Map<number, string>, now: Date): Promise<GetLanesResult> {
     if (!this.redis) {
       // No Redis — use existing PostgreSQL-based TTL in CbpAdapter
       return this.adapter.getLanes(portToBridgeMap, now);
@@ -63,7 +60,7 @@ export class CbpRedisCache {
     // Try to read ALL expected lanes from Redis
     const portNumbers = Array.from(portToBridgeMap.keys());
     const allLaneTypes = [LaneType.General, LaneType.ReadyLane, LaneType.Sentri, LaneType.Pedestrian];
-    const keys = portNumbers.flatMap(p => allLaneTypes.map(lt => redisKey(p, lt)));
+    const keys = portNumbers.flatMap((p) => allLaneTypes.map((lt) => redisKey(p, lt)));
 
     const cached = await this.redis.mget(...keys);
     const cachedLanes: NormalizedLane[] = [];
@@ -97,10 +94,7 @@ export class CbpRedisCache {
     return result;
   }
 
-  private async _writeToRedis(
-    lanes: NormalizedLane[],
-    portToBridgeMap: Map<number, string>,
-  ): Promise<void> {
+  private async _writeToRedis(lanes: NormalizedLane[], portToBridgeMap: Map<number, string>): Promise<void> {
     try {
       const pipeline = this.redis!.pipeline();
       for (const lane of lanes) {

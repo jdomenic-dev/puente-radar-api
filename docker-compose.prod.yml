@@ -1,0 +1,69 @@
+# Local production-like stack for smoke testing the Docker image.
+# Not intended for Railway deploy — Railway provides PostgreSQL/Redis as services.
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: puente-radar-api
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_USER: postgres
+      DATABASE_PASSWORD: postgres
+      DATABASE_NAME: puente_radar
+      DATABASE_SYNC: "false"
+      DATABASE_LOGGING: "false"
+      REDIS_URL: redis://redis:6379
+      CORS_ORIGIN: "https://your-app.expo.app"
+      ADMIN_API_KEY: ${ADMIN_API_KEY:?ADMIN_API_KEY is required}
+      THROTTLE_LIMIT: 60
+      THROTTLE_TTL_MS: 60000
+      CBP_BASE_URL: https://bwt.cbp.gov/api/waittimes
+      CBP_TIMEOUT_MS: 4000
+      CBP_TTL_MINUTES: 15
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    command: >
+      sh -c "node -r dotenv/config node_modules/typeorm/cli.js -d dist/database/data-source.js migration:run && node dist/main"
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: puente-radar-db-prod
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: puente_radar
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata_prod:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d puente_radar"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: puente-radar-redis-prod
+    restart: unless-stopped
+    ports:
+      - "6380:6379"
+    volumes:
+      - redisdata_prod:/data
+
+volumes:
+  pgdata_prod:
+  redisdata_prod:

@@ -172,17 +172,15 @@ describe('ReportsService', () => {
 
       await service.create({ bridgeId: 'bridge-uuid-1', laneType: LaneType.General, lineStatus: ReportStatus.Pending });
 
-      expect(repo.create).toHaveBeenCalledWith(
-        expect.objectContaining({ reportedWaitMinutes: null }),
-      );
+      expect(repo.create).toHaveBeenCalledWith(expect.objectContaining({ reportedWaitMinutes: null }));
     });
 
     it('throws NotFoundException when bridge is not found', async () => {
       mockBridgesService.findOneById.mockRejectedValue(new NotFoundException('Bridge not found'));
 
-      await expect(service.create({ bridgeId: 'nonexistent', laneType: LaneType.General, lineStatus: ReportStatus.Pending })).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.create({ bridgeId: 'nonexistent', laneType: LaneType.General, lineStatus: ReportStatus.Pending }),
+      ).rejects.toThrow(NotFoundException);
 
       expect(repo.create).not.toHaveBeenCalled();
     });
@@ -337,7 +335,7 @@ describe('ReportsService', () => {
 
     it('excludes reports with null reportedWaitMinutes', async () => {
       const reports = [
-        makeUsableReport({ minutesAgo: 5, reportedWaitMinutes: null as unknown as number }),
+        makeUsableReport({ minutesAgo: 5, reportedWaitMinutes: null }),
         makeUsableReport({ minutesAgo: 5, reportedWaitMinutes: 45 }),
       ];
       repo.find!.mockResolvedValue(reports);
@@ -364,7 +362,7 @@ describe('ReportsService', () => {
     it('excludes reports with wait minutes outside 0-360 range', async () => {
       const reports = [
         makeUsableReport({ minutesAgo: 5, reportedWaitMinutes: 361 }), // excluded
-        makeUsableReport({ minutesAgo: 5, reportedWaitMinutes: 0 }),   // valid
+        makeUsableReport({ minutesAgo: 5, reportedWaitMinutes: 0 }), // valid
       ];
       repo.find!.mockResolvedValue(reports);
 
@@ -386,9 +384,9 @@ describe('ReportsService', () => {
       // totalWeight  = 1.0 + 0.8 + 0.5 + 0.3 = 2.6
       // weightedMean = 118 / 2.6 ≈ 45.3846…
       const reports = [
-        makeUsableReport({ minutesAgo: 10, reportedWaitMinutes: 10 }),  // weight 1.0
-        makeUsableReport({ minutesAgo: 20, reportedWaitMinutes: 40 }),  // weight 0.8
-        makeUsableReport({ minutesAgo: 45, reportedWaitMinutes: 80 }),  // weight 0.5
+        makeUsableReport({ minutesAgo: 10, reportedWaitMinutes: 10 }), // weight 1.0
+        makeUsableReport({ minutesAgo: 20, reportedWaitMinutes: 40 }), // weight 0.8
+        makeUsableReport({ minutesAgo: 45, reportedWaitMinutes: 80 }), // weight 0.5
         makeUsableReport({ minutesAgo: 75, reportedWaitMinutes: 120 }), // weight 0.3
         makeUsableReport({ minutesAgo: 95, reportedWaitMinutes: 999 }), // >90 — excluded
       ];
