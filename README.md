@@ -88,8 +88,9 @@ http://localhost:3000/api/docs
 | `THROTTLE_REPORTS_LIMIT` | `5` | Max `POST /reports` per minute |
 | `CBP_BASE_URL` | `https://bwt.cbp.gov/api/waittimes` | CBP wait-times endpoint |
 
-> **Production**: Set `DATABASE_SYNC=false` and use TypeORM migrations instead.
-> **Production**: `ADMIN_API_KEY` and `CORS_ORIGIN` are required.
+> **Staging and production**: Set `DATABASE_SYNC=false`. The EC2 deployment runs
+> pending migrations from the exact ECR image before replacing the API.
+> `ADMIN_API_KEY` and `CORS_ORIGIN` are required in production.
 
 ---
 
@@ -97,7 +98,7 @@ http://localhost:3000/api/docs
 
 | Method | Path | Description |
 |---|---|---|
-| `GET` | `/health` | Liveness check |
+| `GET` | `/health` | API and database readiness check |
 | `GET` | `/bridges` | List all bridges |
 | `GET` | `/bridges/summary` | Home summary (bridge status + recent report count) |
 | `GET` | `/bridges/slug/:slug` | Bridge detail by slug |
@@ -212,7 +213,23 @@ The workflow in `.github/workflows/ci-cd.yml` runs on every push / PR to `main` 
 
 1. **CI**: install dependencies → lint → build → unit tests.
 2. **Build & push**: builds a Docker image and pushes it to **Amazon ECR**.
-3. **Deploy**: connects via SSH to the EC2 instance, pulls the image, and restarts the container.
+3. **Deploy**: pulls the exact image on EC2, runs its migrations, replaces the container, and verifies `/health`.
+
+Pushes to `staging` use the `staging` GitHub environment and `EC2_HOST_STAGING`;
+pushes to `main` use `production` and `EC2_HOST_PROD`. Keep separate EC2 env
+files and databases for the two environments. Each host reads runtime secrets
+from `/home/ec2-user/puente-radar.env`.
+
+Migration failure leaves the running container untouched. After migrations,
+the old container is retained as `puente-radar-api-rollback` until the new
+container passes the bounded health-check loop. A startup or health failure
+restores the old container name and starts it again.
+
+Rollback only covers the application container. Applied database migrations
+remain in place, so production migrations must stay backward-compatible with
+the previously deployed image. If a failed rollback leaves
+`puente-radar-api-rollback` behind, inspect and recover that container before
+running another deployment; CI will not overwrite it.
 
 ### Required GitHub secrets
 
@@ -248,8 +265,8 @@ Recommended architecture for the MVP:
 2. **Create an RDS PostgreSQL instance**:
    - Engine: PostgreSQL 16.
    - Tier: `db.t3.micro` (eligible for free tier).
-   - Public access: **Yes** for the MVP (restrict via security group).
-   - Security group: allow inbound PostgreSQL (port 5432) only from the EC2 instance security group and your IP.
+   - Public access: **No**.
+   - Security group: allow inbound PostgreSQL (port 5432) only from the matching EC2 instance security group.
    - Save the endpoint, username, and password.
 
 3. **(Optional) Create an ElastiCache Redis cluster** if you want caching. Otherwise leave `REDIS_URL` unset.
@@ -297,14 +314,17 @@ Recommended architecture for the MVP:
      - `AmazonEC2ContainerRegistryFullAccess` (push to ECR)
    - Generate access key / secret and add them as GitHub secrets.
 
-7. **Seed the database** (run once against RDS):
+7. **Deploy once, then seed the database** (run once per fresh staging/production database on EC2):
+
+   The first deployment creates the complete schema by running the baseline and
+   estimates migrations. Then seed the six bridge records idempotently with the
+   same image and environment file:
+
    ```bash
-   DATABASE_HOST=<rds-endpoint> \
-   DATABASE_USER=<rds-user> \
-   DATABASE_PASSWORD=<rds-password> \
-   DATABASE_NAME=puente_radar \
-   NODE_ENV=production \
-   pnpm run build && pnpm run seed
+   docker run --rm \
+     --env-file /home/ec2-user/puente-radar.env \
+     <ecr-image-uri> \
+     pnpm run seed
    ```
 
 ### Manual deploy (optional)
@@ -312,18 +332,19 @@ Recommended architecture for the MVP:
 If you ever want to deploy manually from the EC2 instance:
 
 ```bash
-./deploy.sh <ecr-image-uri>
+./deploy.sh <ecr-image-uri> <aws-region>
 ```
+
+The region is mandatory; the helper does not depend on an AWS CLI default.
+It uses the same migrate-before-replace, health-check, and rollback sequence as CI.
 
 ### Manual migration run
 
 If you ever need to run migrations manually against RDS:
 
 ```bash
-DATABASE_HOST=<rds-endpoint> \
-DATABASE_USER=<rds-user> \
-DATABASE_PASSWORD=<rds-password> \
-DATABASE_NAME=puente_radar \
-NODE_ENV=production \
-pnpm run migration:run:prod
+docker run --rm \
+  --env-file /home/ec2-user/puente-radar.env \
+  <ecr-image-uri> \
+  pnpm run migration:run:prod
 ```

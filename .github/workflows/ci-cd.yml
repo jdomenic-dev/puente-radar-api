@@ -82,20 +82,16 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Build, tag, and push image to ECR
+        id: image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.ref_name }}-${{ github.sha }}
         run: |
           IMAGE_URI="$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
-          echo "IMAGE_URI=$IMAGE_URI" >> $GITHUB_ENV
           docker build -t "$IMAGE_URI" .
           docker push "$IMAGE_URI"
+          echo "uri=$IMAGE_URI" >> "$GITHUB_OUTPUT"
           echo "Pushed $IMAGE_URI"
-
-      - name: Save image URI for deploy job
-        id: image
-        run: |
-          echo "uri=${{ env.IMAGE_URI }}" >> "$GITHUB_OUTPUT"
 
   # ───────────────────────────────────────────────────────────────────────────
   # Deploy to EC2
@@ -124,31 +120,104 @@ jobs:
           IMAGE_URI: ${{ needs.build-and-push.outputs.image-uri }}
           AWS_REGION: ${{ secrets.AWS_REGION }}
         run: |
-          echo "$EC2_SSH_KEY" > ec2_key.pem
+          set -euo pipefail
+          printf '%s' "$EC2_SSH_KEY" > ec2_key.pem
           chmod 600 ec2_key.pem
+          trap 'rm -f ec2_key.pem' EXIT
 
-          ssh -o StrictHostKeyChecking=no -i ec2_key.pem "$EC2_USERNAME@$EC2_HOST" << 'EOF'
-            set -e
-            echo "Pulling image $IMAGE_URI"
+          # OpenSSH joins remote arguments into a shell command. Quote each
+          # deployment input before passing it to the remote bash process.
+          printf -v IMAGE_URI_Q '%q' "$IMAGE_URI"
+          printf -v AWS_REGION_Q '%q' "$AWS_REGION"
+
+          ssh -o StrictHostKeyChecking=no -i ec2_key.pem "$EC2_USERNAME@$EC2_HOST" \
+            "bash -s -- $IMAGE_URI_Q $AWS_REGION_Q" <<'EOF'
+            set -euo pipefail
+
+            IMAGE_URI="${1:?Image URI is required}"
+            AWS_REGION="${2:?AWS region is required}"
+            APP_CONTAINER=puente-radar-api
+            BACKUP_CONTAINER=puente-radar-api-rollback
+            ENV_FILE=/home/ec2-user/puente-radar.env
+            HAD_PREVIOUS=false
+
+            if [ ! -s "$ENV_FILE" ]; then
+              echo "Deployment environment file is missing or empty: $ENV_FILE" >&2
+              exit 1
+            fi
+
+            rollback() {
+              echo "New container failed; restoring the previous container." >&2
+              docker rm -f "$APP_CONTAINER" >/dev/null 2>&1 || true
+              if [ "$HAD_PREVIOUS" = true ]; then
+                if ! docker rename "$BACKUP_CONTAINER" "$APP_CONTAINER" || \
+                   ! docker start "$APP_CONTAINER"; then
+                  echo "Automatic rollback failed; previous container remains as $BACKUP_CONTAINER." >&2
+                  return 1
+                fi
+              fi
+            }
+
+            echo "Authenticating to ECR"
             aws ecr get-login-password --region "$AWS_REGION" | \
               docker login --username AWS --password-stdin "${IMAGE_URI%%/*}"
 
+            echo "Pulling deployment image"
             docker pull "$IMAGE_URI"
 
-            echo "Stopping existing container..."
-            docker stop puente-radar-api || true
-            docker rm puente-radar-api || true
+            echo "Running database migrations"
+            docker run --rm \
+              --env-file "$ENV_FILE" \
+              "$IMAGE_URI" \
+              pnpm run migration:run:prod
 
-            echo "Starting new container..."
-            docker run -d \
-              --name puente-radar-api \
+            if docker container inspect "$BACKUP_CONTAINER" >/dev/null 2>&1; then
+              echo "Refusing to overwrite existing rollback container: $BACKUP_CONTAINER" >&2
+              exit 1
+            fi
+
+            if docker container inspect "$APP_CONTAINER" >/dev/null 2>&1; then
+              docker rename "$APP_CONTAINER" "$BACKUP_CONTAINER"
+              HAD_PREVIOUS=true
+              if ! docker stop "$BACKUP_CONTAINER"; then
+                rollback || true
+                exit 1
+              fi
+            fi
+
+            echo "Starting new container"
+            if ! docker run -d \
+              --name "$APP_CONTAINER" \
               --restart unless-stopped \
               -p 80:3000 \
-              --env-file /home/ec2-user/puente-radar.env \
-              "$IMAGE_URI"
+              --env-file "$ENV_FILE" \
+              "$IMAGE_URI"; then
+              rollback || true
+              exit 1
+            fi
 
-            echo "Cleaning up old images..."
+            HEALTHY=false
+            for attempt in $(seq 1 12); do
+              if docker exec "$APP_CONTAINER" node -e \
+                "fetch('http://127.0.0.1:3000/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"; then
+                HEALTHY=true
+                break
+              fi
+              echo "Health check attempt $attempt/12 failed; retrying in 5 seconds"
+              sleep 5
+            done
+
+            if [ "$HEALTHY" != true ]; then
+              echo "New container did not become healthy." >&2
+              docker logs --tail 100 "$APP_CONTAINER" >&2 || true
+              rollback || true
+              exit 1
+            fi
+
+            if [ "$HAD_PREVIOUS" = true ]; then
+              docker rm "$BACKUP_CONTAINER"
+            fi
+
+            echo "Deployment healthy; cleaning up old images"
             docker image prune -af --filter "until=168h" || true
           EOF
-
-          rm -f ec2_key.pem
