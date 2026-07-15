@@ -130,14 +130,14 @@ jobs:
           AWS_REGION: ${{ secrets.AWS_REGION }}
         run: |
           set -euo pipefail
-          if [ -z "$EC2_INSTANCE_ID" ]; then
-            echo "EC2 instance ID is required for this environment." >&2
+          if [ -z "$EC2_INSTANCE_ID" ] || [ -z "$IMAGE_URI" ] || [ -z "$AWS_REGION" ]; then
+            echo "EC2 instance ID, image URI, and AWS region are required for deployment." >&2
             exit 1
           fi
 
           printf -v IMAGE_URI_Q '%q' "$IMAGE_URI"
           printf -v AWS_REGION_Q '%q' "$AWS_REGION"
-          COMMAND="sudo -u ec2-user -- /home/ec2-user/deploy.sh $IMAGE_URI_Q $AWS_REGION_Q"
+          COMMAND="sudo -u ec2-user -- bash -c 'exec /home/ec2-user/deploy.sh \"\$1\" \"\$2\"' deploy $IMAGE_URI_Q $AWS_REGION_Q"
           PARAMETERS="$(jq -cn --arg command "$COMMAND" '{commands: [$command]}')"
 
           COMMAND_ID="$(aws ssm send-command \
