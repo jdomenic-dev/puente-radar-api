@@ -54,6 +54,15 @@ class EnvironmentVariables {
   @IsOptional()
   DATABASE_LOGGING?: string;
 
+  /**
+   * Enables PostgreSQL SSL/TLS. Accepted values: "true" | "false".
+   * Required for managed databases like Amazon RDS that force SSL.
+   * Optional — when omitted, defaults to false.
+   */
+  @IsString()
+  @IsOptional()
+  DATABASE_SSL?: string;
+
   @IsString()
   @IsOptional()
   CORS_ORIGIN: string = '*';

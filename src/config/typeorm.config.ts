@@ -21,6 +21,8 @@ export const typeormConfig: TypeOrmModuleAsyncOptions = {
     const loggingEnv = configService.get<string>('DATABASE_LOGGING');
     const logging = loggingEnv !== undefined ? loggingEnv === 'true' : !isProduction;
 
+    const sslEnabled = configService.get<string>('DATABASE_SSL') === 'true';
+
     return {
       type: 'postgres',
       host: configService.get<string>('DATABASE_HOST'),
@@ -29,6 +31,11 @@ export const typeormConfig: TypeOrmModuleAsyncOptions = {
       password: configService.get<string>('DATABASE_PASSWORD'),
       database: configService.get<string>('DATABASE_NAME'),
       entities: [join(__dirname, '/../**/*.entity{.ts,.js}')],
+
+      // PostgreSQL SSL — required by managed services such as Amazon RDS.
+      // For production, replace rejectUnauthorized: false with the CA bundle
+      // from AWS and set rejectUnauthorized: true.
+      ssl: sslEnabled ? { rejectUnauthorized: false } : false,
 
       // Migrations — managed via CLI using src/database/data-source.ts
       // Run `npm run migration:run` before deploying to production.

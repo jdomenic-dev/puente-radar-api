@@ -17,6 +17,8 @@ import { join } from 'node:path';
 
 dotenv.config();
 
+const sslEnabled = process.env['DATABASE_SSL'] === 'true';
+
 export default new DataSource({
   type: 'postgres',
   host: process.env['DATABASE_HOST'] ?? 'localhost',
@@ -24,6 +26,9 @@ export default new DataSource({
   username: process.env['DATABASE_USER'] ?? 'postgres',
   password: process.env['DATABASE_PASSWORD'] ?? 'postgres',
   database: process.env['DATABASE_NAME'] ?? 'puente_radar',
+
+  // PostgreSQL SSL — required by managed services such as Amazon RDS.
+  ssl: sslEnabled ? { rejectUnauthorized: false } : false,
 
   // Entities — use compiled JS in dist for CLI operations
   entities: [join(__dirname, '../**/*.entity{.ts,.js}')],

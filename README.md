@@ -77,6 +77,7 @@ http://localhost:3000/api/docs
 | `DATABASE_USER` | `postgres` | DB user |
 | `DATABASE_PASSWORD` | `postgres` | DB password |
 | `DATABASE_NAME` | `puente_radar` | Database name |
+| `DATABASE_SSL` | `false` | Enable PostgreSQL SSL (required for RDS) |
 | `DATABASE_SYNC` | `true` | Auto-sync schema (dev only) |
 | `DATABASE_LOGGING` | `true` | Log SQL queries |
 | `CORS_ORIGIN` | `http://localhost:3001` | Allowed CORS origin |
@@ -298,6 +299,7 @@ Recommended architecture for the MVP:
    DATABASE_USER=<rds-user>
    DATABASE_PASSWORD=<rds-password>
    DATABASE_NAME=puente_radar
+   DATABASE_SSL=true
    DATABASE_SYNC=false
    DATABASE_LOGGING=false
    CORS_ORIGIN=https://your-expo-app-url.expo.app
