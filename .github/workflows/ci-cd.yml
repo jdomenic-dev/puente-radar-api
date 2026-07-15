@@ -138,11 +138,12 @@ jobs:
           printf -v IMAGE_URI_Q '%q' "$IMAGE_URI"
           printf -v AWS_REGION_Q '%q' "$AWS_REGION"
           COMMAND="sudo -u ec2-user -- /home/ec2-user/deploy.sh $IMAGE_URI_Q $AWS_REGION_Q"
+          PARAMETERS="$(jq -cn --arg command "$COMMAND" '{commands: [$command]}')"
 
           COMMAND_ID="$(aws ssm send-command \
             --document-name AWS-RunShellScript \
             --instance-ids "$EC2_INSTANCE_ID" \
-            --parameters "commands=$COMMAND" \
+            --parameters "$PARAMETERS" \
             --comment "Deploy Puente Radar $IMAGE_URI" \
             --query 'Command.CommandId' \
             --output text)"
