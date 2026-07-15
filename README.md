@@ -215,10 +215,12 @@ The workflow in `.github/workflows/ci-cd.yml` runs on every push / PR to `main` 
 2. **Build & push**: builds a Docker image and pushes it to **Amazon ECR**.
 3. **Deploy**: pulls the exact image on EC2, runs its migrations, replaces the container, and verifies `/health`.
 
-Pushes to `staging` use the `staging` GitHub environment and `EC2_HOST_STAGING`;
-pushes to `main` use `production` and `EC2_HOST_PROD`. Keep separate EC2 env
-files and databases for the two environments. Each host reads runtime secrets
-from `/home/ec2-user/puente-radar.env`.
+Pushes to `staging` use the `staging` GitHub environment and
+`EC2_INSTANCE_ID_STAGING`; pushes to `main` use `production` and
+`EC2_INSTANCE_ID_PROD`. GitHub Actions sends the deployment command through
+AWS Systems Manager, so deploys do not require inbound SSH access. Keep
+separate EC2 env files and databases for the two environments. Each host reads
+runtime secrets from `/home/ec2-user/puente-radar.env`.
 
 Migration failure leaves the running container untouched. After migrations,
 the old container is retained as `puente-radar-api-rollback` until the new
@@ -235,14 +237,12 @@ running another deployment; CI will not overwrite it.
 
 | Secret | Description |
 |---|---|
-| `AWS_ACCESS_KEY_ID` | AWS IAM user access key (push to ECR) |
+| `AWS_ACCESS_KEY_ID` | AWS IAM user access key (push to ECR and invoke SSM) |
 | `AWS_SECRET_ACCESS_KEY` | AWS IAM user secret key |
 | `AWS_REGION` | AWS region, e.g. `us-east-1` |
 | `ECR_REPOSITORY` | Name of the ECR repository |
-| `EC2_HOST_PROD` | Public IP or DNS of the production EC2 instance |
-| `EC2_HOST_STAGING` | Public IP or DNS of the staging EC2 instance |
-| `EC2_USERNAME` | SSH username, e.g. `ec2-user` |
-| `EC2_SSH_KEY` | PEM private key content (full text) |
+| `EC2_INSTANCE_ID_PROD` | Production EC2 instance ID |
+| `EC2_INSTANCE_ID_STAGING` | Staging EC2 instance ID |
 
 ---
 
@@ -274,8 +274,8 @@ Recommended architecture for the MVP:
 4. **Create the EC2 instance**:
    - AMI: **Amazon Linux 2023**.
    - Instance type: `t3.micro` (free tier eligible).
-   - IAM role: attach a role with `AmazonEC2ContainerRegistryReadOnly`.
-   - Security group: allow inbound SSH (port 22) from your IP, and HTTP (port 80) from anywhere.
+   - IAM role: attach `AmazonEC2ContainerRegistryReadOnly` and `AmazonSSMManagedEC2InstanceDefaultPolicy`.
+   - Security group: allow HTTP (port 80) from anywhere. SSH (port 22) is optional and should be restricted to your IP for manual administration only.
    - User data: paste the contents of `scripts/ec2-user-data.sh`.
    - Allocate an **Elastic IP** and associate it to the instance so the address does not change.
 
@@ -312,6 +312,7 @@ Recommended architecture for the MVP:
 6. **Create an IAM user for GitHub Actions**:
    - Attach policies:
      - `AmazonEC2ContainerRegistryFullAccess` (push to ECR)
+     - An inline policy that allows `ssm:SendCommand` only for the target EC2 instance and `AWS-RunShellScript`, plus `ssm:GetCommandInvocation`.
    - Generate access key / secret and add them as GitHub secrets.
 
 7. **Deploy once, then seed the database** (run once per fresh staging/production database on EC2):
