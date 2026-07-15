@@ -145,7 +145,7 @@ jobs:
             --document-name AWS-RunShellScript \
             --instance-ids "$EC2_INSTANCE_ID" \
             --parameters "$PARAMETERS" \
-            --comment "Deploy Puente Radar $IMAGE_URI" \
+            --comment "Deploy Puente Radar $IMAGE_TAG" \
             --query 'Command.CommandId' \
             --output text)"
 
