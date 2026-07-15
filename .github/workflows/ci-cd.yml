@@ -56,9 +56,6 @@ jobs:
     needs: ci
     if: github.event_name == 'push'
 
-    outputs:
-      image-uri: ${{ steps.image.outputs.uri }}
-
     permissions:
       id-token: write
       contents: read
@@ -82,7 +79,6 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Build, tag, and push image to ECR
-        id: image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.ref_name }}-${{ github.sha }}
@@ -90,7 +86,6 @@ jobs:
           IMAGE_URI="$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
           docker build -t "$IMAGE_URI" .
           docker push "$IMAGE_URI"
-          echo "uri=$IMAGE_URI" >> "$GITHUB_OUTPUT"
           echo "Pushed $IMAGE_URI"
 
   # ───────────────────────────────────────────────────────────────────────────
@@ -126,14 +121,20 @@ jobs:
       - name: Deploy to EC2 via SSM Run Command
         env:
           EC2_INSTANCE_ID: ${{ github.ref_name == 'main' && secrets.EC2_INSTANCE_ID_PROD || secrets.EC2_INSTANCE_ID_STAGING }}
-          IMAGE_URI: ${{ needs.build-and-push.outputs.image-uri }}
           AWS_REGION: ${{ secrets.AWS_REGION }}
+          IMAGE_TAG: ${{ github.ref_name }}-${{ github.sha }}
         run: |
           set -euo pipefail
-          if [ -z "$EC2_INSTANCE_ID" ] || [ -z "$IMAGE_URI" ] || [ -z "$AWS_REGION" ]; then
-            echo "EC2 instance ID, image URI, and AWS region are required for deployment." >&2
+          if [ -z "$EC2_INSTANCE_ID" ] || [ -z "$ECR_REPOSITORY" ] || [ -z "$AWS_REGION" ]; then
+            echo "EC2 instance ID, ECR repository, and AWS region are required for deployment." >&2
             exit 1
           fi
+
+          ECR_REPOSITORY_URI="$(aws ecr describe-repositories \
+            --repository-names "$ECR_REPOSITORY" \
+            --query 'repositories[0].repositoryUri' \
+            --output text)"
+          IMAGE_URI="$ECR_REPOSITORY_URI:$IMAGE_TAG"
 
           printf -v IMAGE_URI_Q '%q' "$IMAGE_URI"
           printf -v AWS_REGION_Q '%q' "$AWS_REGION"
