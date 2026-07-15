@@ -165,7 +165,8 @@ backend/
 ├── Dockerfile                     # Multi-stage production image
 ├── .github/workflows/ci-cd.yml    # GitHub Actions CI/CD
 ├── scripts/
-│   └── ec2-user-data.sh           # EC2 bootstrap script
+│   ├── ec2-user-data.sh           # EC2 bootstrap script
+│   └── ec2-deploy.sh              # EC2 deployment helper used by CI
 └── README.md
 ```
 
@@ -333,10 +334,10 @@ Recommended architecture for the MVP:
 If you ever want to deploy manually from the EC2 instance:
 
 ```bash
-./deploy.sh <ecr-image-uri> <aws-region>
+./deploy.sh <ecr-image-uri> [aws-region]
 ```
 
-The region is mandatory; the helper does not depend on an AWS CLI default.
+The region is optional; if omitted, the helper derives it from the ECR image URI.
 It uses the same migrate-before-replace, health-check, and rollback sequence as CI.
 
 ### Manual migration run

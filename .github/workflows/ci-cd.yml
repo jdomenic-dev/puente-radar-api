@@ -111,6 +111,15 @@ jobs:
       name: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
 
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare deploy script
+        id: deploy-script
+        run: |
+          DEPLOY_SCRIPT_B64="$(base64 -w0 scripts/ec2-deploy.sh)"
+          echo "b64=$DEPLOY_SCRIPT_B64" >> "$GITHUB_OUTPUT"
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -123,6 +132,7 @@ jobs:
           EC2_INSTANCE_ID: ${{ github.ref_name == 'main' && secrets.EC2_INSTANCE_ID_PROD || secrets.EC2_INSTANCE_ID_STAGING }}
           AWS_REGION: ${{ secrets.AWS_REGION }}
           IMAGE_TAG: ${{ github.ref_name }}-${{ github.sha }}
+          DEPLOY_SCRIPT_B64: ${{ steps.deploy-script.outputs.b64 }}
         run: |
           set -euo pipefail
           if [ -z "$EC2_INSTANCE_ID" ] || [ -z "$ECR_REPOSITORY" ] || [ -z "$AWS_REGION" ]; then
@@ -137,8 +147,7 @@ jobs:
           IMAGE_URI="$ECR_REPOSITORY_URI:$IMAGE_TAG"
 
           printf -v IMAGE_URI_Q '%q' "$IMAGE_URI"
-          printf -v AWS_REGION_Q '%q' "$AWS_REGION"
-          COMMAND="sudo -u ec2-user -- bash -c 'exec /home/ec2-user/deploy.sh \"\$1\" \"\$2\"' deploy $IMAGE_URI_Q $AWS_REGION_Q"
+          COMMAND="printf '%s' \"$DEPLOY_SCRIPT_B64\" | base64 -d > /home/ec2-user/deploy.sh && chmod +x /home/ec2-user/deploy.sh && sudo -u ec2-user -- /home/ec2-user/deploy.sh $IMAGE_URI_Q"
           PARAMETERS="$(jq -cn --arg command "$COMMAND" '{commands: [$command]}')"
 
           COMMAND_ID="$(aws ssm send-command \

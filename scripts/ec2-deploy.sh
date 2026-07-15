@@ -1,43 +1,12 @@
 #!/bin/bash
 # ─────────────────────────────────────────────────────────────────────────────
-# EC2 user-data script for Puente Radar API
+# Deploy helper for Puente Radar API on EC2
 # ─────────────────────────────────────────────────────────────────────────────
-# This script runs once when the EC2 instance boots.
-# It installs Docker, AWS CLI, and prepares the environment file path.
-#
-# Usage:
-#   1. Launch an Amazon Linux 2023 t3.micro instance.
-#   2. Paste this script into "User data" (advanced options).
-#   3. Attach an IAM role with AmazonEC2ContainerRegistryReadOnly.
-#   4. After launch, create /home/ec2-user/puente-radar.env with your secrets.
-#   5. Optionally attach an Elastic IP so the host address stays fixed.
+# Usage: ./deploy.sh <ecr-image-uri> [aws-region]
+# If the region is not provided, it is derived from the ECR image URI.
 # ─────────────────────────────────────────────────────────────────────────────
-
-set -e
-exec > >(tee /var/log/user-data.log) 2>&1
-
-echo "=== Updating system packages ==="
-dnf update -y
-
-echo "=== Installing Docker ==="
-dnf install -y docker
-systemctl enable docker
-systemctl start docker
-usermod -aG docker ec2-user
-
-echo "=== Installing AWS CLI ==="
-dnf install -y awscli
-
-echo "=== Creating env file placeholder ==="
-touch /home/ec2-user/puente-radar.env
-chown ec2-user:ec2-user /home/ec2-user/puente-radar.env
-chmod 600 /home/ec2-user/puente-radar.env
-
-echo "=== Creating deploy helper script ==="
-cat > /home/ec2-user/deploy.sh << 'DEPLOY_EOF'
-#!/bin/bash
-# Manual deploy helper - usage: ./deploy.sh <ecr-image-uri> [aws-region]
 set -euo pipefail
+
 IMAGE_URI="${1:?Usage: ./deploy.sh <ecr-image-uri> [aws-region]}"
 AWS_REGION="${2:-}"
 APP_CONTAINER=puente-radar-api
@@ -76,10 +45,14 @@ rollback() {
   fi
 }
 
+echo "Authenticating to ECR"
 aws ecr get-login-password --region "$AWS_REGION" | \
   docker login --username AWS --password-stdin "${IMAGE_URI%%/*}"
+
+echo "Pulling deployment image"
 docker pull "$IMAGE_URI"
 
+echo "Running database migrations"
 docker run --rm \
   --env-file "$ENV_FILE" \
   "$IMAGE_URI" \
@@ -99,6 +72,7 @@ if docker container inspect "$APP_CONTAINER" >/dev/null 2>&1; then
   fi
 fi
 
+echo "Starting new container"
 if ! docker run -d \
   --name "$APP_CONTAINER" \
   --restart unless-stopped \
@@ -121,6 +95,7 @@ for attempt in $(seq 1 12); do
 done
 
 if [ "$HEALTHY" != true ]; then
+  echo "New container did not become healthy." >&2
   docker logs --tail 100 "$APP_CONTAINER" >&2 || true
   rollback || true
   exit 1
@@ -130,10 +105,5 @@ if [ "$HAD_PREVIOUS" = true ]; then
   docker rm "$BACKUP_CONTAINER"
 fi
 
+echo "Deployment healthy; cleaning up old images"
 docker image prune -af --filter "until=168h" || true
-DEPLOY_EOF
-
-chmod +x /home/ec2-user/deploy.sh
-chown ec2-user:ec2-user /home/ec2-user/deploy.sh
-
-echo "=== Done ==="
