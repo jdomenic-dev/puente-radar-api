@@ -3,14 +3,15 @@
 # EC2 user-data script for Puente Radar API
 # ─────────────────────────────────────────────────────────────────────────────
 # This script runs once when the EC2 instance boots.
-# It installs Docker, AWS CLI, and prepares the environment file path.
+# It installs Docker, AWS CLI, Nginx, and Certbot, then prepares the host.
 #
 # Usage:
 #   1. Launch an Amazon Linux 2023 t3.micro instance.
 #   2. Paste this script into "User data" (advanced options).
 #   3. Attach an IAM role with AmazonEC2ContainerRegistryReadOnly.
 #   4. After launch, create /home/ec2-user/puente-radar.env with your secrets.
-#   5. Optionally attach an Elastic IP so the host address stays fixed.
+#   5. Attach an Elastic IP so the DNS address stays fixed.
+#   6. Deploy the API before enabling Nginx and requesting its certificate.
 # ─────────────────────────────────────────────────────────────────────────────
 
 set -e
@@ -27,6 +28,36 @@ usermod -aG docker ec2-user
 
 echo "=== Installing AWS CLI ==="
 dnf install -y awscli
+
+echo "=== Installing Nginx and Certbot ==="
+dnf install -y nginx certbot python3-certbot-nginx
+
+echo "=== Configuring inactive Nginx reverse proxy ==="
+cat > /etc/nginx/conf.d/puente-radar.conf << 'NGINX_EOF'
+server {
+    listen 80;
+    listen [::]:80;
+    server_name api.puenteradar.com;
+
+    client_max_body_size 10m;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Connection "";
+        proxy_connect_timeout 5s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+}
+NGINX_EOF
+
+nginx -t
+systemctl disable --now nginx
 
 echo "=== Creating env file placeholder ==="
 touch /home/ec2-user/puente-radar.env
@@ -102,7 +133,7 @@ fi
 if ! docker run -d \
   --name "$APP_CONTAINER" \
   --restart unless-stopped \
-  -p 80:3000 \
+  -p 127.0.0.1:3000:3000 \
   --env-file "$ENV_FILE" \
   "$IMAGE_URI"; then
   rollback || true

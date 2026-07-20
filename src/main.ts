@@ -19,6 +19,10 @@ async function bootstrap() {
   const isProduction = nodeEnv === 'production';
   const logger = new Logger('Bootstrap');
 
+  if (isProduction) {
+    app.set('trust proxy', 1);
+  }
+
   // ── Security headers ───────────────────────────────────────────────────────
   // Helmet sets HSTS, X-Frame-Options, X-Content-Type-Options, etc.
   // In non-production we keep Swagger working with a relaxed CSP.

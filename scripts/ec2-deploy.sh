@@ -76,7 +76,7 @@ echo "Starting new container"
 if ! docker run -d \
   --name "$APP_CONTAINER" \
   --restart unless-stopped \
-  -p 80:3000 \
+  -p 127.0.0.1:3000:3000 \
   --env-file "$ENV_FILE" \
   "$IMAGE_URI"; then
   rollback || true

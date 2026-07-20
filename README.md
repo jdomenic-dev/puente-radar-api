@@ -277,7 +277,7 @@ Recommended architecture for the MVP:
    - AMI: **Amazon Linux 2023**.
    - Instance type: `t3.micro` (free tier eligible).
    - IAM role: attach `AmazonEC2ContainerRegistryReadOnly` and `AmazonSSMManagedEC2InstanceDefaultPolicy`.
-   - Security group: allow HTTP (port 80) from anywhere. SSH (port 22) is optional and should be restricted to your IP for manual administration only.
+   - Security group: allow HTTP (port 80) and HTTPS (port 443) from anywhere. SSH (port 22) is optional and should be restricted to your IP for manual administration only.
    - User data: paste the contents of `scripts/ec2-user-data.sh`.
    - Allocate an **Elastic IP** and associate it to the instance so the address does not change.
 
@@ -321,8 +321,14 @@ Recommended architecture for the MVP:
 7. **Deploy once, then seed the database** (run once per fresh staging/production database on EC2):
 
    The first deployment creates the complete schema by running the baseline and
-   estimates migrations. Then seed the six bridge records idempotently with the
-   same image and environment file:
+   estimates migrations. Docker is bound to `127.0.0.1:3000`, so a fresh host is
+   not publicly reachable yet. Complete the ordered
+   [one-time Nginx and TLS cutover](docs/deployment-workflow.md#one-time-nginx-and-tls-cutover),
+   including the local health check, Nginx activation, and Certbot steps. Do not
+   expose the container directly on port 80.
+
+   Then seed the six bridge records idempotently with the same image and
+   environment file:
 
    ```bash
    docker run --rm \
