@@ -19,11 +19,13 @@ docs {
   - `baseUrl` — URL base de la API
   - `bridgeId` — UUID de puente, autopoblado por "List bridges"
   - `laneType` — general | ready_lane | sentri | pedestrian
+  - `apiKey` — set this as a secret environment variable for protected requests
 
   ## Notas
 
   - `POST /reports` tiene rate limit de 5 req/min por IP (devuelve 429 al pasarse).
+  - Only `GET /health` and `POST /reports` are public; every other API request requires `x-api-key`.
   - `GET /estimates` combina CBP oficial + reportes comunitarios + ajuste admin,
     con caché Redis (TTL 15 min).
-  - Swagger disponible en `{{baseUrl}}/api/docs`.
+  - Swagger is available at `{{baseUrl}}/api/docs` only in development and test.
 }

@@ -1,11 +1,18 @@
-import { Body, Controller, Get, Param, Patch, UseGuards } from '@nestjs/common';
-import { ApiNotFoundResponse, ApiOkResponse, ApiOperation, ApiTags, ApiUnauthorizedResponse } from '@nestjs/swagger';
+import { Body, Controller, Get, Param, Patch } from '@nestjs/common';
+import {
+  ApiNotFoundResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiSecurity,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from '@nestjs/swagger';
 import { BridgesService } from './bridges.service.js';
 import { UpdateBridgeStatusDto } from './dto/update-bridge-status.dto.js';
 import { Bridge } from './entities/bridge.entity.js';
-import { ApiKeyGuard } from '../../common/guards/api-key.guard.js';
 
 @ApiTags('bridges')
+@ApiSecurity('api-key')
 @Controller('bridges')
 export class BridgesController {
   constructor(private readonly bridgesService: BridgesService) {}
@@ -43,7 +50,6 @@ export class BridgesController {
   }
 
   @Patch(':id/status')
-  @UseGuards(ApiKeyGuard)
   @ApiOperation({ summary: 'Update bridge status, waitMinutes, and trend (admin only)' })
   @ApiOkResponse({ type: Bridge })
   @ApiNotFoundResponse({ description: 'Bridge not found' })

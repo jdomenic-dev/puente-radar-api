@@ -76,8 +76,8 @@ class EnvironmentVariables {
   JSON_BODY_LIMIT: string = '50kb';
 
   /**
-   * Static API key for admin endpoints.
-   * Required before enabling admin operations in production.
+   * Static API key for protected endpoints.
+   * Production validation requires at least 32 non-whitespace characters.
    */
   @IsString()
   @IsOptional()
@@ -163,6 +163,14 @@ export function validate(config: Record<string, unknown>) {
 
   if (errors.length > 0) {
     throw new Error(errors.toString());
+  }
+
+  const adminApiKey = validatedConfig.ADMIN_API_KEY;
+  if (
+    validatedConfig.NODE_ENV === Environment.Production &&
+    (!adminApiKey || adminApiKey.replace(/\s/g, '').length < 32)
+  ) {
+    throw new Error('ADMIN_API_KEY must contain at least 32 non-whitespace characters in production.');
   }
 
   return validatedConfig;

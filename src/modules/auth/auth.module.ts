@@ -1,19 +1,23 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { APP_GUARD } from '@nestjs/core';
 import { ApiKeyGuard } from '../../common/guards/api-key.guard.js';
 
 /**
  * AuthModule — minimal auth seam for the MVP.
  *
  * Currently provides:
- *   - ApiKeyGuard: static key guard for admin endpoints.
+ *   - ApiKeyGuard: global static-key guard for all non-public endpoints.
  *
- * Real JWT/session authentication can be added later without changing
- * the controllers that already rely on ApiKeyGuard.
+ * Real JWT/session authentication can replace this global guard later.
  */
 @Module({
   imports: [ConfigModule],
-  providers: [ApiKeyGuard],
-  exports: [ApiKeyGuard],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: ApiKeyGuard,
+    },
+  ],
 })
 export class AuthModule {}

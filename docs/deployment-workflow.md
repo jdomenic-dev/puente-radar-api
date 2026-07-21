@@ -9,9 +9,9 @@ This document explains how source code moves from a Git push to a healthy contai
 3. On push events, the pipeline builds and publishes a Docker image to ECR.
 4. GitHub Actions sends an SSM Run Command to the target EC2 instance.
 5. EC2 authenticates to ECR, pulls the exact image, and runs TypeORM migrations.
-6. The deployment helper replaces the application container on `127.0.0.1:3000` and validates `/health` inside it.
+6. The deployment helper replaces the application container on `127.0.0.1:3000`, validates public `/health`, and calls protected `GET /bridges` with the configured API key inside it.
 7. Nginx serves public ports 80/443 and forwards requests to the private container binding.
-8. If startup or health validation fails, the previous application container is restored.
+8. If startup, health, or protected-endpoint validation fails, the previous application container is restored.
 
 ## End-to-end pipeline
 
@@ -31,9 +31,11 @@ flowchart LR
     SSM --> EC2[Amazon EC2]
     EC2 -->|pull exact image| ECR
     EC2 -->|TLS connection| RDS[(Amazon RDS PostgreSQL)]
-    EC2 --> Health[Health check]
-    Health -->|healthy| Live[Deployment complete]
+    EC2 --> Health[Public health check]
+    Health --> Auth[Protected API-key check]
+    Auth -->|healthy| Live[Deployment complete]
     Health -->|unhealthy| Rollback[Restore previous container]
+    Auth -->|unauthorized or unhealthy| Rollback
 ```
 
 ### Event behavior
@@ -206,10 +208,12 @@ flowchart TD
     Backup -->|No| StartNew[Start new container]
     Rename --> StartNew
     StartNew -->|Failure| Restore[Restore previous container]
-    StartNew --> Health[Check /health up to 12 times]
+    StartNew --> Health[Check public /health up to 12 times]
     Health -->|Failure| Logs[Print logs]
     Logs --> Restore
-    Health -->|Success| RemoveBackup[Remove rollback container]
+    Health -->|Success| Protected[Call protected GET /bridges with API key]
+    Protected -->|Failure| Logs
+    Protected -->|Success| RemoveBackup[Remove rollback container]
     RemoveBackup --> Cleanup[Prune images older than 168 hours]
     Cleanup --> Done[Deployment complete]
 ```
@@ -256,15 +260,15 @@ The new container starts with:
 
 Docker does not publish the application on a public interface. Nginx is the only public HTTP boundary and proxies requests to `http://127.0.0.1:3000`.
 
-### Health validation
+### Deployment validation
 
-The helper checks the application from inside the container:
+The helper first checks the public readiness endpoint from inside the container:
 
 ```text
 http://127.0.0.1:3000/health
 ```
 
-It tries 12 times with five seconds between attempts. A healthy response removes the backup container; a failed response prints the latest 100 log lines and restores the old container.
+It tries 12 times with five seconds between attempts. After readiness succeeds, the helper reads `ADMIN_API_KEY` only from the container environment and calls protected `GET /bridges` with `x-api-key`. The key is never printed. The rollback container is removed only after both checks pass. A readiness failure prints the latest 100 application log lines; a missing key or protected-check failure emits only a generic error. Either failure restores the old container.
 
 ## Rollback boundaries
 
@@ -276,6 +280,7 @@ It tries 12 times with five seconds between attempts. A healthy response removes
 | Database migration failure | Existing container remains running |
 | New container startup failure | Previous container is restored |
 | Health check failure | New container is removed and previous container is restored |
+| Protected API-key check failure | New container is removed and previous container is restored |
 | Backup cleanup failure | Deployment may require manual inspection before the next rollout |
 
 > Database migrations are not automatically rolled back. Production migrations must remain backward-compatible with the previously deployed application image.
@@ -327,9 +332,10 @@ DATABASE_NAME=puente_radar
 DATABASE_SSL=true
 DATABASE_SYNC=false
 DATABASE_LOGGING=false
+ADMIN_API_KEY=<generated with openssl rand -hex 32>
 ```
 
-Do not commit this file or print its contents in CI logs.
+`ADMIN_API_KEY` is required in production and must contain at least 32 non-whitespace characters. Only `GET /health` and `POST /reports` are public; all other API routes require its exact configured value in `x-api-key`. Do not commit this file or print its contents in CI logs.
 
 ## Network boundaries
 
@@ -390,6 +396,7 @@ Perform these steps in order so Nginx never claims port 80 while the old public 
 ```bash
 docker ps --filter name=puente-radar-api
 curl -i http://127.0.0.1:3000/health
+docker exec puente-radar-api node -e "const key=process.env.ADMIN_API_KEY;if(!key)process.exit(1);fetch('http://127.0.0.1:3000/bridges',{headers:{'x-api-key':key}}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 curl -i -H 'Host: api.puenteradar.com' http://127.0.0.1/health
 sudo nginx -t
 sudo certbot certificates
@@ -399,6 +406,7 @@ Expected results:
 
 - The container is `Up`.
 - Both direct loopback and Nginx-proxied `/health` requests return HTTP `200`.
+- The protected endpoint check exits successfully without printing the key.
 - The health payload reports the database as available.
 - The certificate covers `api.puenteradar.com` and is not near expiry.
 
@@ -430,6 +438,7 @@ docker logs --tail 100 puente-radar-api
 | ECR login returns HTTP 400 | Authorization token and registry region differ | Derive the region from the ECR registry URI |
 | PostgreSQL reports `no encryption` | RDS requires SSL | Set `DATABASE_SSL=true` and enable TypeORM SSL |
 | Health check fails | API startup or RDS connectivity failed | Inspect container logs; the helper restores the old container |
+| Protected endpoint check fails | `ADMIN_API_KEY` is missing, mismatched, or the protected route is unhealthy | Correct the container environment; the helper restores the old container without printing the key |
 
 ## Operational checklist
 
@@ -442,6 +451,7 @@ docker logs --tail 100 puente-radar-api
 - [ ] The EC2 role can pull from ECR.
 - [ ] The RDS security group permits PostgreSQL from the EC2 security group.
 - [ ] `DATABASE_SSL=true` is configured for RDS.
+- [ ] `ADMIN_API_KEY` is configured with at least 32 non-whitespace characters.
 - [ ] Nginx configuration passes `sudo nginx -t`.
 - [ ] EC2 security-group ports 80 and 443 are public; port 3000 is not public.
 
@@ -450,6 +460,7 @@ docker logs --tail 100 puente-radar-api
 - [ ] GitHub Actions shows all three jobs as successful.
 - [ ] `puente-radar-api` is running on EC2.
 - [ ] Internal `/health` returns HTTP `200`.
+- [ ] Internal protected `GET /bridges` succeeds with the configured API key.
 - [ ] Public HTTPS `/health` returns HTTP `200` with a valid certificate.
 - [ ] `sudo certbot renew --dry-run` succeeds and automated renewal is scheduled.
 - [ ] No stale `puente-radar-api-rollback` container remains.
@@ -461,7 +472,7 @@ docker logs --tail 100 puente-radar-api
 |---|---|
 | `.github/workflows/ci-cd.yml` | CI, image publication, SSM dispatch, and command polling |
 | `Dockerfile` | Production application image |
-| `scripts/ec2-deploy.sh` | Migration-safe EC2 rollout, health check, and rollback |
+| `scripts/ec2-deploy.sh` | Migration-safe EC2 rollout, public and protected smoke checks, and rollback |
 | `scripts/nginx-puente-radar.conf` | Canonical initial HTTP reverse proxy; Certbot manages the EC2 TLS additions |
 | `scripts/ec2-user-data.sh` | First-boot EC2 setup, including an inactive embedded copy that must stay aligned with the canonical proxy |
 | `src/config/typeorm.config.ts` | Runtime TypeORM configuration, including optional SSL |

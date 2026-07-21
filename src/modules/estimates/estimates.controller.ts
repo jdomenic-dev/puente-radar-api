@@ -8,11 +8,12 @@
  */
 
 import { Controller, Get, Query } from '@nestjs/common';
-import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 import { EstimatesService } from './estimates.service.js';
 import { EstimatesQueryDto } from './dto/estimates-query.dto.js';
 
 @ApiTags('estimates')
+@ApiSecurity('api-key')
 @Controller('estimates')
 export class EstimatesController {
   constructor(private readonly estimatesService: EstimatesService) {}

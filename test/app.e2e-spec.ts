@@ -5,6 +5,8 @@ import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module.js';
 import { REDIS_CLIENT } from '../src/modules/redis/redis.module.js';
 
+const TEST_API_KEY = 'test-api-key';
+
 /**
  * E2E test suite for Puente Radar backend.
  *
@@ -74,8 +76,18 @@ describe('Puente Radar API (e2e)', () => {
   // ── Bridges ───────────────────────────────────────────────────────────────
 
   describe('GET /bridges', () => {
-    it('returns an array (may be empty without seeding)', async () => {
+    it('returns 401 without an API key', async () => {
       const res = await request(app.getHttpServer()).get('/bridges');
+      expect(res.status).toBe(401);
+    });
+
+    it('returns 401 with an invalid API key', async () => {
+      const res = await request(app.getHttpServer()).get('/bridges').set('x-api-key', 'invalid-key');
+      expect(res.status).toBe(401);
+    });
+
+    it('returns an array (may be empty without seeding)', async () => {
+      const res = await request(app.getHttpServer()).get('/bridges').set('x-api-key', TEST_API_KEY);
       expect(res.status).toBe(200);
       expect(Array.isArray(res.body)).toBe(true);
     });
@@ -83,7 +95,7 @@ describe('Puente Radar API (e2e)', () => {
 
   describe('GET /bridges/summary', () => {
     it('returns an array of bridge summaries', async () => {
-      const res = await request(app.getHttpServer()).get('/bridges/summary');
+      const res = await request(app.getHttpServer()).get('/bridges/summary').set('x-api-key', TEST_API_KEY);
       expect(res.status).toBe(200);
       expect(Array.isArray(res.body)).toBe(true);
     });
@@ -91,7 +103,9 @@ describe('Puente Radar API (e2e)', () => {
 
   describe('GET /bridges/:id — not found', () => {
     it('returns 404 for a non-existent UUID', async () => {
-      const res = await request(app.getHttpServer()).get('/bridges/00000000-0000-0000-0000-000000000000');
+      const res = await request(app.getHttpServer())
+        .get('/bridges/00000000-0000-0000-0000-000000000000')
+        .set('x-api-key', TEST_API_KEY);
       expect(res.status).toBe(404);
     });
   });
@@ -134,8 +148,13 @@ describe('Puente Radar API (e2e)', () => {
   });
 
   describe('GET /reports', () => {
+    it('returns 401 without an API key', async () => {
+      const res = await request(app.getHttpServer()).get('/reports');
+      expect(res.status).toBe(401);
+    });
+
     it('returns an array with optional query params', async () => {
-      const res = await request(app.getHttpServer()).get('/reports?limit=5');
+      const res = await request(app.getHttpServer()).get('/reports?limit=5').set('x-api-key', TEST_API_KEY);
       expect(res.status).toBe(200);
       expect(Array.isArray(res.body)).toBe(true);
     });
@@ -143,7 +162,7 @@ describe('Puente Radar API (e2e)', () => {
 
   describe('GET /reports/summary/home', () => {
     it('returns an array of home summary items', async () => {
-      const res = await request(app.getHttpServer()).get('/reports/summary/home');
+      const res = await request(app.getHttpServer()).get('/reports/summary/home').set('x-api-key', TEST_API_KEY);
       expect(res.status).toBe(200);
       expect(Array.isArray(res.body)).toBe(true);
     });
@@ -157,6 +176,7 @@ describe('Puente Radar API (e2e)', () => {
       // so we test with a syntactically valid UUID and expect 400 for enum error
       const res = await request(app.getHttpServer())
         .patch('/bridges/00000000-0000-0000-0000-000000000000/status')
+        .set('x-api-key', TEST_API_KEY)
         .send({ status: 'not-a-valid-status' })
         .set('Content-Type', 'application/json');
       expect(res.status).toBe(400);

@@ -6,7 +6,7 @@ NestJS REST API for real-time border crossing wait-time reporting.
 
 - **NestJS 11** + TypeScript 5.7 (`module: nodenext`)
 - **TypeORM 0.3** + PostgreSQL 16
-- **Swagger** served at `/api/docs`
+- **Swagger** served at `/api/docs` in development and test only
 - **class-validator** + **class-transformer** for DTO validation
 
 ---
@@ -81,7 +81,7 @@ http://localhost:3000/api/docs
 | `DATABASE_SYNC` | `true` | Auto-sync schema (dev only) |
 | `DATABASE_LOGGING` | `true` | Log SQL queries |
 | `CORS_ORIGIN` | `http://localhost:3001` | Allowed CORS origin |
-| `ADMIN_API_KEY` | `change-me-in-production` | Static key for admin endpoints |
+| `ADMIN_API_KEY` | — | Static key for protected endpoints; required in production with at least 32 non-whitespace characters |
 | `JSON_BODY_LIMIT` | `50kb` | Max JSON body size |
 | `REDIS_URL` | — | Optional Redis connection URL |
 | `THROTTLE_TTL_MS` | `60000` | Rate-limit window |
@@ -93,23 +93,36 @@ http://localhost:3000/api/docs
 > pending migrations from the exact ECR image before replacing the API.
 > `ADMIN_API_KEY` and `CORS_ORIGIN` are required in production.
 
+## API-key policy
+
+API routes are closed by default. Only `GET /health` and `POST /reports` are public; every other API request requires the configured value in the `x-api-key` header. Production startup rejects a missing key or one with fewer than 32 non-whitespace characters. Whitespace is not counted for strength, but the configured value is preserved and runtime comparison is exact.
+
+Generate and configure a key without committing it, then use the same value from your secret store:
+
+```bash
+export API_KEY='<configured ADMIN_API_KEY value>'
+curl -H "x-api-key: $API_KEY" http://localhost:3000/bridges
+```
+
+Swagger UI is available at `/api/docs` only in development and test. Use its `Authorize` control to supply the same `x-api-key`; Swagger is disabled in production.
+
 ---
 
 ## Available Endpoints
 
-| Method | Path | Description |
-|---|---|---|
-| `GET` | `/health` | API and database readiness check |
-| `GET` | `/bridges` | List all bridges |
-| `GET` | `/bridges/summary` | Home summary (bridge status + recent report count) |
-| `GET` | `/bridges/slug/:slug` | Bridge detail by slug |
-| `GET` | `/bridges/:id` | Bridge detail by UUID |
-| `PATCH` | `/bridges/:id/status` | Update bridge status / wait / trend |
-| `POST` | `/reports` | Submit an anonymous crossing report |
-| `GET` | `/reports` | List reports (optional `?bridgeId=&limit=`) |
-| `GET` | `/reports/summary/home` | Home summary (delegates to bridges summary) |
-| `GET` | `/reports/bridge/:bridgeId/recent` | Recent reports for a bridge (default limit 10) |
-| `GET` | `/api/docs` | Swagger UI |
+| Method | Path | Access | Description |
+|---|---|---|---|
+| `GET` | `/health` | Public | API and database readiness check |
+| `GET` | `/bridges` | API key | List all bridges |
+| `GET` | `/bridges/summary` | API key | Home summary (bridge status + recent report count) |
+| `GET` | `/bridges/slug/:slug` | API key | Bridge detail by slug |
+| `GET` | `/bridges/:id` | API key | Bridge detail by UUID |
+| `PATCH` | `/bridges/:id/status` | API key | Update bridge status / wait / trend |
+| `POST` | `/reports` | Public | Submit an anonymous crossing report |
+| `GET` | `/reports` | API key | List reports (optional `?bridgeId=&limit=`) |
+| `GET` | `/reports/summary/home` | API key | Home summary (delegates to bridges summary) |
+| `GET` | `/reports/bridge/:bridgeId/recent` | API key | Recent reports for a bridge (default limit 10) |
+| `GET` | `/api/docs` | Development/test only | Swagger UI |
 
 ---
 
@@ -180,7 +193,7 @@ The API includes the following security measures:
 - **Helmet** — security headers (HSTS, X-Frame-Options, X-Content-Type-Options, etc.).
 - **CORS** — origin restricted in production; `*` is rejected when `NODE_ENV=production`.
 - **Rate limiting** — global throttle + stricter limit on `POST /reports`.
-- **Admin API key** — admin endpoints require the `x-api-key` header.
+- **Closed-by-default API key** — only `GET /health` and `POST /reports` are public; all other API routes require `x-api-key`.
 - **Body size limit** — JSON payloads capped at `JSON_BODY_LIMIT` (default `50kb`).
 - **Validation** — DTOs use `whitelist` + `forbidNonWhitelisted` to reject unknown fields.
 - **Production DB safety** — `synchronize` is forced to `false` in production.
@@ -215,7 +228,7 @@ The workflow in `.github/workflows/ci-cd.yml` runs on every push / PR to `main` 
 
 1. **CI**: install dependencies → lint → build → unit tests.
 2. **Build & push**: builds a Docker image and pushes it to **Amazon ECR**.
-3. **Deploy**: pulls the exact image on EC2, runs its migrations, replaces the container, and verifies `/health`.
+3. **Deploy**: pulls the exact image on EC2, runs its migrations, replaces the container, verifies public `/health`, and calls protected `GET /bridges` with the container's configured API key.
 
 Pushes to `staging` use the `staging` GitHub environment and
 `EC2_INSTANCE_ID_STAGING`; pushes to `main` use `production` and
@@ -226,8 +239,9 @@ runtime secrets from `/home/ec2-user/puente-radar.env`.
 
 Migration failure leaves the running container untouched. After migrations,
 the old container is retained as `puente-radar-api-rollback` until the new
-container passes the bounded health-check loop. A startup or health failure
-restores the old container name and starts it again.
+container passes both the bounded public health-check loop and the protected
+API-key smoke check. A startup or verification failure restores the old
+container name and starts it again. The deployment never prints the API key.
 
 Rollback only covers the application container. Applied database migrations
 remain in place, so production migrations must stay backward-compatible with
@@ -303,7 +317,7 @@ Recommended architecture for the MVP:
    DATABASE_SYNC=false
    DATABASE_LOGGING=false
    CORS_ORIGIN=https://your-expo-app-url.expo.app
-   ADMIN_API_KEY=<generate with openssl rand -hex 32>
+   ADMIN_API_KEY=<generated with openssl rand -hex 32>
    REDIS_URL=redis://<elasticache-endpoint>:6379
    ```
 
@@ -346,7 +360,7 @@ If you ever want to deploy manually from the EC2 instance:
 ```
 
 The region is optional; if omitted, the helper derives it from the ECR image URI.
-It uses the same migrate-before-replace, health-check, and rollback sequence as CI.
+It uses the same migrate-before-replace, public health check, protected API-key smoke check, and rollback sequence as CI.
 
 ### Manual migration run
 

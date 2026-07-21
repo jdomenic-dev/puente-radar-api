@@ -10,6 +10,10 @@ patch {
   auth: none
 }
 
+headers {
+  x-api-key: {{apiKey}}
+}
+
 body:json {
   {
     "status": "medium",

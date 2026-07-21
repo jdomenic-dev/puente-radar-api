@@ -28,6 +28,8 @@ import type { Bridge } from '../src/modules/bridges/entities/bridge.entity.js';
 import type { NormalizedLane } from '../src/modules/estimates/sources/wait-time-source.adapter.js';
 import type { GetLanesResult } from '../src/modules/estimates/sources/cbp.adapter.js';
 
+const TEST_API_KEY = 'test-api-key';
+
 // ---------------------------------------------------------------------------
 // Fake bridge data — 2 in-memory bridges guaranteed to be present
 // ---------------------------------------------------------------------------
@@ -176,7 +178,7 @@ describe('GET /estimates (e2e)', () => {
 
   describe('GET /estimates (default laneType=general)', () => {
     it('returns 200 with exactly two entries (one per fake bridge)', async () => {
-      const res = await request(app.getHttpServer()).get('/estimates');
+      const res = await request(app.getHttpServer()).get('/estimates').set('x-api-key', TEST_API_KEY);
       expect(res.status).toBe(200);
       expect(Array.isArray(res.body)).toBe(true);
       // Both stubs are active: BridgesService returns 2 bridges, CbpAdapter returns matching lanes
@@ -184,7 +186,7 @@ describe('GET /estimates (e2e)', () => {
     });
 
     it('all entries have laneType = general', async () => {
-      const res = await request(app.getHttpServer()).get('/estimates');
+      const res = await request(app.getHttpServer()).get('/estimates').set('x-api-key', TEST_API_KEY);
       const entries = res.body as Array<Record<string, unknown>>;
       for (const entry of entries) {
         expect(entry.laneType).toBe(LaneType.General);
@@ -192,13 +194,13 @@ describe('GET /estimates (e2e)', () => {
     });
 
     it('CBP adapter getLanes is called exactly once per request', async () => {
-      await request(app.getHttpServer()).get('/estimates');
+      await request(app.getHttpServer()).get('/estimates').set('x-api-key', TEST_API_KEY);
       expect(fakeCbpAdapterStub.getLanes).toHaveBeenCalledTimes(1);
     });
 
     it('every entry satisfies the full response contract', async () => {
       // BridgesService stub guarantees 2 entries — no skip-when-empty.
-      const res = await request(app.getHttpServer()).get('/estimates');
+      const res = await request(app.getHttpServer()).get('/estimates').set('x-api-key', TEST_API_KEY);
       const entries = res.body as Array<Record<string, unknown>>;
 
       // Must be non-empty (stub guarantees it)
@@ -229,7 +231,7 @@ describe('GET /estimates (e2e)', () => {
     });
 
     it('exactly one entry has isBestOption=true', async () => {
-      const res = await request(app.getHttpServer()).get('/estimates');
+      const res = await request(app.getHttpServer()).get('/estimates').set('x-api-key', TEST_API_KEY);
       const entries = res.body as Array<Record<string, unknown>>;
       const bestOptions = entries.filter((e) => e.isBestOption === true);
       // Two bridges, one best option (the lower wait: FAKE_BRIDGE_A at 25 min vs 45 min)
@@ -242,7 +244,7 @@ describe('GET /estimates (e2e)', () => {
 
   describe('GET /estimates?laneType=sentri', () => {
     it('returns 200 with all entries having laneType=sentri', async () => {
-      const res = await request(app.getHttpServer()).get('/estimates?laneType=sentri');
+      const res = await request(app.getHttpServer()).get('/estimates?laneType=sentri').set('x-api-key', TEST_API_KEY);
       expect(res.status).toBe(200);
       const entries = res.body as Array<Record<string, unknown>>;
       for (const entry of entries) {
@@ -255,7 +257,7 @@ describe('GET /estimates (e2e)', () => {
 
   describe('GET /estimates?laneType=invalid', () => {
     it('returns 400 for an invalid laneType value', async () => {
-      const res = await request(app.getHttpServer()).get('/estimates?laneType=invalid');
+      const res = await request(app.getHttpServer()).get('/estimates?laneType=invalid').set('x-api-key', TEST_API_KEY);
       expect(res.status).toBe(400);
     });
   });
@@ -264,7 +266,7 @@ describe('GET /estimates (e2e)', () => {
 
   describe('GET /estimates with no active adjustments', () => {
     it('returns 200 (no active adjustments in test DB)', async () => {
-      const res = await request(app.getHttpServer()).get('/estimates');
+      const res = await request(app.getHttpServer()).get('/estimates').set('x-api-key', TEST_API_KEY);
       expect(res.status).toBe(200);
     });
   });
@@ -273,7 +275,7 @@ describe('GET /estimates (e2e)', () => {
 
   describe('CbpAdapter stub verification', () => {
     it('does not call the real CBP network (getLanes called via stub)', async () => {
-      await request(app.getHttpServer()).get('/estimates');
+      await request(app.getHttpServer()).get('/estimates').set('x-api-key', TEST_API_KEY);
       expect(jest.isMockFunction(fakeCbpAdapterStub.getLanes)).toBe(true);
       expect(fakeCbpAdapterStub.getLanes).toHaveBeenCalled();
     });

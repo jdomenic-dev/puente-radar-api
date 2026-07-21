@@ -101,6 +101,14 @@ if [ "$HEALTHY" != true ]; then
   exit 1
 fi
 
+echo "Verifying API-key authentication on a protected endpoint"
+if ! docker exec "$APP_CONTAINER" node -e \
+  "const key=process.env.ADMIN_API_KEY;if(!key)process.exit(1);fetch('http://127.0.0.1:3000/bridges',{headers:{'x-api-key':key}}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"; then
+  echo "Protected endpoint verification failed." >&2
+  rollback || true
+  exit 1
+fi
+
 if [ "$HAD_PREVIOUS" = true ]; then
   docker rm "$BACKUP_CONTAINER"
 fi

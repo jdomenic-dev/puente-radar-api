@@ -4,6 +4,7 @@ import {
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiSecurity,
   ApiTags,
   ApiTooManyRequestsResponse,
 } from '@nestjs/swagger';
@@ -12,6 +13,7 @@ import { ReportsService } from './reports.service.js';
 import { CreateReportDto } from './dto/create-report.dto.js';
 import { ReportQueryDto } from './dto/report-query.dto.js';
 import { Report } from './entities/report.entity.js';
+import { Public } from '../../common/decorators/public.decorator.js';
 
 @ApiTags('reports')
 @Controller('reports')
@@ -24,6 +26,7 @@ export class ReportsController {
    * The global guard applies 60 req/min; this override tightens it for writes.
    */
   @Post()
+  @Public()
   @Throttle({ default: { ttl: 60000, limit: 5 } })
   @ApiOperation({ summary: 'Submit an anonymous crossing report' })
   @ApiCreatedResponse({ type: Report })
@@ -34,6 +37,7 @@ export class ReportsController {
   }
 
   @Get()
+  @ApiSecurity('api-key')
   @ApiOperation({ summary: 'List reports with optional bridgeId filter and limit' })
   @ApiOkResponse({ type: [Report] })
   findAll(@Query() query: ReportQueryDto): Promise<Report[]> {
@@ -41,6 +45,7 @@ export class ReportsController {
   }
 
   @Get('summary/home')
+  @ApiSecurity('api-key')
   @ApiOperation({ summary: 'Home summary: all bridges with recent report count (last 60 min)' })
   @ApiOkResponse({ description: 'Array of bridge summaries' })
   getHomeSummary() {
@@ -48,6 +53,7 @@ export class ReportsController {
   }
 
   @Get('bridge/:bridgeId/recent')
+  @ApiSecurity('api-key')
   @ApiOperation({ summary: 'Get recent reports for a specific bridge' })
   @ApiOkResponse({ type: [Report] })
   @ApiNotFoundResponse({ description: 'Bridge not found' })

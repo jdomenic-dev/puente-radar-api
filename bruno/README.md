@@ -22,8 +22,9 @@ pnpm start:dev                 # API en :3000
 ## Orden recomendado
 
 1. **Health / Health check** — confirma que la API responde.
-2. **Bridges / List bridges** — autopobla la variable `bridgeId` que usan los demás requests.
-3. El resto en cualquier orden.
+2. Set `apiKey` as a secret environment variable matching `ADMIN_API_KEY`.
+3. **Bridges / List bridges** — autopobla la variable `bridgeId` que usan los demás requests.
+4. El resto en cualquier orden.
 
 ## Estructura
 
@@ -64,9 +65,11 @@ bruno/
 | `bridgeId`   | UUID de puente — autopoblado por List bridges |
 | `bridgeSlug` | slug de puente — autopoblado por List bridges |
 | `laneType`   | general \| ready_lane \| sentri \| pedestrian |
+| `apiKey`     | Secret value sent as `x-api-key` on protected requests |
 
 ## Notas
 
 - `POST /reports` tiene rate limit de **5 req/min por IP** (429 al pasarse).
+- Only `GET /health` and `POST /reports` are public. Every other API request requires `x-api-key`.
 - `GET /estimates` cachea en Redis con TTL de 15 min.
-- Documentación interactiva (Swagger) en `{{baseUrl}}/api/docs`.
+- Swagger is available at `{{baseUrl}}/api/docs` only in development and test; use **Authorize** to set `x-api-key`.
