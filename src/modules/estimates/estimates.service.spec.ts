@@ -54,13 +54,14 @@ function makeLane(
   laneType: LaneType,
   delayMinutes: number | null,
   isOpen = true,
+  lanesOpen: number | null = isOpen ? 3 : 0,
   fetchedAt = new Date('2025-06-20T10:00:00.000Z'),
 ): NormalizedLane {
   return {
     cbpPortNumber,
     laneType,
     delayMinutes,
-    lanesOpen: isOpen ? 3 : 0,
+    lanesOpen,
     operationalStatus: isOpen ? 'delay' : 'Lanes Closed',
     isOpen,
     sourceUpdateTimeRaw: 'At 10:00 am MDT',
@@ -660,8 +661,40 @@ describe('EstimatesService', () => {
 
       expect(results[0].sourcesUsed).toContain('cbp');
       expect(results[0].sourcesUsed).toContain('community');
+      expect(results[0].lanesOpen).toBe(3);
       // Blend: (60*0.60 + 40*0.25) / 0.85 = (36+10)/0.85 = 46/0.85 ≈ 54.12
       expect(results[0].estimatedWaitMinutes).toBeCloseTo(54.12, 1);
+    });
+  });
+
+  describe('official lanes open count', () => {
+    it('preserves zero from the official lane', async () => {
+      mockBridgesService.findActive.mockResolvedValue([BRIDGE_A]);
+      mockCbpAdapter.getLanes.mockResolvedValue({
+        lanes: [makeLane(PORT_A, LaneType.General, 0, true, 0)],
+        sourceStale: false,
+      } satisfies GetLanesResult);
+      mockReportsService.findUsableReports.mockResolvedValue({ sampleSize: 0, weightedMean: null });
+      mockAdjustmentRepository.find.mockResolvedValue([]);
+
+      const results = await service.getEstimates(LaneType.General);
+
+      expect(results[0].lanesOpen).toBe(0);
+    });
+
+    it('returns null when the official lane has no count', async () => {
+      mockBridgesService.findActive.mockResolvedValue([BRIDGE_A]);
+      mockCbpAdapter.getLanes.mockResolvedValue({
+        lanes: [makeLane(PORT_A, LaneType.General, 15, true, null)],
+        sourceStale: false,
+      } satisfies GetLanesResult);
+      mockReportsService.findUsableReports.mockResolvedValue({ sampleSize: 2, weightedMean: 20 });
+      mockAdjustmentRepository.find.mockResolvedValue([]);
+
+      const results = await service.getEstimates(LaneType.General);
+
+      expect(results[0].lanesOpen).toBeNull();
+      expect(results[0].sourcesUsed).toContain('community');
     });
   });
 
@@ -679,6 +712,7 @@ describe('EstimatesService', () => {
       const results = await service.getEstimates(LaneType.General);
 
       expect(results).toHaveLength(1);
+      expect(results[0].lanesOpen).toBeNull();
       expect(results[0].sourcesUsed).toContain('community');
       expect(results[0].sourcesUsed).not.toContain('cbp');
     });

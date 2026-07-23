@@ -71,12 +71,13 @@ function makeLane(
   laneType: LaneType,
   delayMinutes: number | null,
   isOpen = true,
+  lanesOpen = isOpen ? 3 : 0,
 ): NormalizedLane {
   return {
     cbpPortNumber,
     laneType,
     delayMinutes,
-    lanesOpen: isOpen ? 3 : 0,
+    lanesOpen,
     operationalStatus: isOpen ? 'delay' : 'Lanes Closed',
     isOpen,
     sourceUpdateTimeRaw: 'At 10:00 am MDT',
@@ -87,7 +88,7 @@ function makeLane(
 /** Pre-baked lanes for both fake bridges: general open with distinct delays. */
 const fakeLanes: NormalizedLane[] = [
   // FAKE_BRIDGE_A (240201): general 25 min, sentri 15 min
-  makeLane(240201, LaneType.General, 25),
+  makeLane(240201, LaneType.General, 25, true, 0),
   makeLane(240201, LaneType.Sentri, 15),
   // FAKE_BRIDGE_B (240202): general 45 min, sentri closed
   makeLane(240202, LaneType.General, 45),
@@ -122,6 +123,7 @@ const REQUIRED_ENTRY_FIELDS = [
   'bridgeId',
   'bridgeName',
   'laneType',
+  'lanesOpen',
   'status',
   'confidence',
   'confidenceScore',
@@ -220,6 +222,7 @@ describe('GET /estimates (e2e)', () => {
         // Type-shape assertions on key fields
         expect(typeof entry.bridgeId).toBe('string');
         expect(typeof entry.bridgeName).toBe('string');
+        expect(typeof entry.lanesOpen === 'number' || entry.lanesOpen === null).toBe(true);
         expect(typeof entry.confidenceScore).toBe('number');
         expect(['low', 'medium', 'high']).toContain(entry.confidence);
         expect(['up', 'down', 'stable']).toContain(entry.trend);
@@ -228,6 +231,8 @@ describe('GET /estimates (e2e)', () => {
         expect(typeof entry.isBestOption).toBe('boolean');
         expect(typeof entry.bestOptionFallback).toBe('boolean');
       }
+
+      expect(entries.find((entry) => entry.bridgeId === FAKE_BRIDGE_A.id)?.lanesOpen).toBe(0);
     });
 
     it('exactly one entry has isBestOption=true', async () => {

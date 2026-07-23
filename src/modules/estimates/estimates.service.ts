@@ -48,6 +48,7 @@ export interface EstimateResponseEntry {
   bridgeId: string;
   bridgeName: string;
   laneType: LaneType;
+  lanesOpen: number | null;
   estimatedWaitMinutes?: number;
   estimateUnavailable?: 'laneClosed' | 'noData';
   status: string;
@@ -208,6 +209,7 @@ export class EstimatesService {
         bridgeId: bridge.id,
         bridgeName: bridge.name,
         laneType,
+        lanesOpen: officialLane?.lanesOpen ?? null,
         estimatedWaitMinutes: calcResult.estimatedWaitMinutes,
         estimateUnavailable: calcResult.estimateUnavailable,
         status: calcResult.status,
