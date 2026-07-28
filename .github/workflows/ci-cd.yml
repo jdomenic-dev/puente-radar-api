@@ -4,7 +4,7 @@ on:
   push:
     branches: [main, staging]
   pull_request:
-    branches: [main, staging]
+    branches: [main, staging, feat/historical-bridge-time-recommendations]
 
 env:
   AWS_REGION: ${{ secrets.AWS_REGION }}
