@@ -21,6 +21,7 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "seed": "node -r dotenv/config dist/database/seed.js",
     "seed:dev": "ts-node --esm -r tsconfig-paths/register src/database/seed.ts",
+    "audit:cbp-history": "node dist/database/audit/run-cbp-history-audit.js",
     "migration:generate": "dotenv -e .env -- pnpm dlx typeorm-ts-node-esm -d src/database/data-source.ts migration:generate",
     "migration:run": "dotenv -e .env -- pnpm dlx typeorm-ts-node-esm -d src/database/data-source.ts migration:run",
     "migration:revert": "dotenv -e .env -- pnpm dlx typeorm-ts-node-esm -d src/database/data-source.ts migration:revert",
