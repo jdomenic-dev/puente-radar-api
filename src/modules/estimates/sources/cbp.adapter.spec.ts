@@ -988,3 +988,48 @@ describe('CbpAdapter — AbortSignal passed to fetch (WARNING 6)', () => {
     expect(init.signal).toBeInstanceOf(AbortSignal);
   });
 });
+
+// ===========================================================================
+// PR3 — Persistence seam: fetchAndNormalize (side-effect-free) (tasks 3.1-3.2)
+// ===========================================================================
+
+describe('CbpAdapter — fetchAndNormalize (persistence-seam extraction)', () => {
+  it('B3.1-a: fetchAndNormalize never calls repo.save', async () => {
+    const repo = makeMockRepo();
+    const adapter = makeAdapter(makeFetchMock(), repo);
+    await adapter.fetchAndNormalize(PORT_TO_BRIDGE, FIXED_NOW);
+    expect(repo.save).not.toHaveBeenCalled();
+  });
+
+  it('B3.1-b: fetchAndNormalize never calls repo.findLatestPerBridgeLane', async () => {
+    const repo = makeMockRepo();
+    const adapter = makeAdapter(makeFetchMock(), repo);
+    await adapter.fetchAndNormalize(PORT_TO_BRIDGE, FIXED_NOW);
+    expect(repo.findLatestPerBridgeLane).not.toHaveBeenCalled();
+  });
+
+  it('B3.1-c: fetchAndNormalize returns the same normalized lanes fetchAll would derive (12 lanes for 3 known ports)', async () => {
+    const repo = makeMockRepo();
+    const adapter = makeAdapter(makeFetchMock(), repo);
+    const lanes = await adapter.fetchAndNormalize(PORT_TO_BRIDGE, FIXED_NOW);
+    expect(lanes.length).toBe(12);
+    const lane = lanes.find((l) => l.cbpPortNumber === 240201 && l.laneType === LaneType.General);
+    expect(lane?.delayMinutes).toBe(10);
+  });
+
+  it('B3.1-d: fetchAndNormalize on fetch failure returns [] without throwing', async () => {
+    const repo = makeMockRepo();
+    const adapter = makeAdapter(makeFailingFetchMock(), repo);
+    const lanes = await adapter.fetchAndNormalize(PORT_TO_BRIDGE, FIXED_NOW);
+    expect(lanes).toEqual([]);
+    expect(repo.save).not.toHaveBeenCalled();
+  });
+
+  it('B3.2-a: fetchAll still composes fetchAndNormalize + persist — repo.save called once per lane (regression, unchanged call count)', async () => {
+    const repo = makeMockRepo();
+    const adapter = makeAdapter(makeFetchMock(), repo);
+    const lanes = await adapter.fetchAll(PORT_TO_BRIDGE, FIXED_NOW);
+    expect(lanes.length).toBe(12);
+    expect(repo.save).toHaveBeenCalledTimes(12);
+  });
+});
