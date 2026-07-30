@@ -7,7 +7,7 @@
  * Column names MUST match the migration exactly:
  *   id, bridgeId, laneType, delayMinutes, lanesOpen,
  *   operationalStatus, isOpen, sourceUpdateTimeRaw,
- *   fetchedAt, createdAt, updatedAt.
+ *   fetchedAt, slotStart, createdAt, updatedAt.
  *
  * This entity is NOT registered in a module yet — that happens in Slice C
  * (EstimatesModule forFeature). It is used here only for typed repository
@@ -61,6 +61,18 @@ export class CbpSnapshot {
    */
   @Column({ type: 'timestamptz', default: () => 'now()' })
   fetchedAt: Date;
+
+  /**
+   * Canonical UTC-floored collection slot (cadence-aligned). NULL for every
+   * request-driven row written by CbpAdapter.getLanes/_persistSnapshots — those
+   * rows are TTL/trend evidence, not slot evidence, and must never enter historical
+   * aggregation. Set ONLY by the scheduled historical collector added in a later PR.
+   * A partial unique index on (bridgeId, laneType, slotStart) added by the
+   * HistoricalCollection migration constrains only non-null values, so NULL-slot
+   * request rows never collide with each other or with collector rows.
+   */
+  @Column({ type: 'timestamptz', nullable: true, default: null })
+  slotStart: Date | null;
 
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;

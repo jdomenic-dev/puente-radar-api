@@ -52,3 +52,44 @@ describe('environment validation', () => {
     expect(validate({ ...requiredConfig, NODE_ENV: 'test' }).ADMIN_API_KEY).toBeUndefined();
   });
 });
+
+describe('historical collection configuration', () => {
+  it('defaults every historical field to a safe, disabled state when omitted', () => {
+    const result = validate({ ...requiredConfig });
+
+    expect(result.HISTORICAL_TZ).toBe('America/Ciudad_Juarez');
+    expect(result.HISTORICAL_COLLECTION_ENABLED).toBe('false');
+    expect(result.HISTORICAL_API_ENABLED).toBe('false');
+    expect(result.HISTORICAL_CADENCE_MINUTES).toBe(15);
+    expect(result.HISTORICAL_MIN_DATES).toBe(6);
+    expect(result.HISTORICAL_MIN_COVERAGE_RATIO).toBe(0.7);
+  });
+
+  it('accepts explicit overrides for every historical field, converting numeric strings', () => {
+    const result = validate({
+      ...requiredConfig,
+      HISTORICAL_TZ: 'America/Denver',
+      HISTORICAL_COLLECTION_ENABLED: 'true',
+      HISTORICAL_API_ENABLED: 'true',
+      HISTORICAL_CADENCE_MINUTES: '30',
+      HISTORICAL_MIN_DATES: '10',
+      HISTORICAL_MIN_COVERAGE_RATIO: '0.85',
+    });
+
+    expect(result.HISTORICAL_TZ).toBe('America/Denver');
+    expect(result.HISTORICAL_COLLECTION_ENABLED).toBe('true');
+    expect(result.HISTORICAL_API_ENABLED).toBe('true');
+    expect(result.HISTORICAL_CADENCE_MINUTES).toBe(30);
+    expect(result.HISTORICAL_MIN_DATES).toBe(10);
+    expect(result.HISTORICAL_MIN_COVERAGE_RATIO).toBe(0.85);
+  });
+
+  it('rejects a cadence below 1 minute', () => {
+    expect(() => validate({ ...requiredConfig, HISTORICAL_CADENCE_MINUTES: '0' })).toThrow();
+  });
+
+  it('rejects a coverage ratio outside the 0-1 range', () => {
+    expect(() => validate({ ...requiredConfig, HISTORICAL_MIN_COVERAGE_RATIO: '1.5' })).toThrow();
+    expect(() => validate({ ...requiredConfig, HISTORICAL_MIN_COVERAGE_RATIO: '-0.1' })).toThrow();
+  });
+});
