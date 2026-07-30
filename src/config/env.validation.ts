@@ -1,5 +1,5 @@
 import { plainToInstance } from 'class-transformer';
-import { IsEnum, IsInt, IsOptional, IsString, Max, Min, validateSync } from 'class-validator';
+import { IsEnum, IsInt, IsNumber, IsOptional, IsString, Max, Min, validateSync } from 'class-validator';
 
 enum Environment {
   Development = 'development',
@@ -150,6 +150,45 @@ class EnvironmentVariables {
   @Min(1)
   @IsOptional()
   CBP_TTL_MINUTES: number = 15;
+
+  // ── Historical collection configuration ────────────────────────────────────
+  // Flags default OFF; HISTORICAL_COLLECTION_ENABLED MUST stay "false" in production until the
+  // CBP direction/polling-rate/ToS gate (see run-cbp-history-audit.ts) is cleared. Enabling
+  // collection/API is a separate rollout step, not part of this schema/config change.
+
+  /** IANA timezone for local-time grouping. Default: America/Ciudad_Juarez. */
+  @IsString()
+  @IsOptional()
+  HISTORICAL_TZ: string = 'America/Ciudad_Juarez';
+
+  /** "true" | "false". No collector code runs yet — this flag only gates a future PR. */
+  @IsString()
+  @IsOptional()
+  HISTORICAL_COLLECTION_ENABLED: string = 'false';
+
+  /** "true" | "false". Independent of HISTORICAL_COLLECTION_ENABLED; no endpoint exists yet. */
+  @IsString()
+  @IsOptional()
+  HISTORICAL_API_ENABLED: string = 'false';
+
+  /** Minutes between scheduled collection cycles. Default: 15. */
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  HISTORICAL_CADENCE_MINUTES: number = 15;
+
+  /** Min distinct comparable local dates for sufficient evidence. Default: 6 (design.md tiers). */
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  HISTORICAL_MIN_DATES: number = 6;
+
+  /** Min coverage ratio (0-1) of expected slots for sufficient evidence. Default: 0.7. */
+  @IsNumber()
+  @Min(0)
+  @Max(1)
+  @IsOptional()
+  HISTORICAL_MIN_COVERAGE_RATIO: number = 0.7;
 }
 
 export function validate(config: Record<string, unknown>) {
