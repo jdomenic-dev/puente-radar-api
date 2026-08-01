@@ -220,8 +220,11 @@ export class CbpAdapter implements WaitTimeSourceAdapter {
   // -------------------------------------------------------------------------
 
   /**
-   * Fetch fresh CBP data, normalize it, and persist one snapshot per
-   * (bridgeId, laneType). Returns the normalized lanes.
+   * Fetch fresh CBP data and normalize it — NO persistence side effect.
+   *
+   * Extracted for the historical collector (a later PR), which owns its own
+   * slot-aware persistence (CbpSnapshotCustomRepository.saveSlotSnapshot) and
+   * must never write through this adapter's request-driven `save` path.
    *
    * On any fetch failure (network error, non-ok HTTP, timeout), returns []
    * without throwing — callers decide how to handle the empty result.
@@ -229,7 +232,7 @@ export class CbpAdapter implements WaitTimeSourceAdapter {
    * @param portToBridgeMap  Map<cbpPortNumber, bridgeId>
    * @param now              Injected clock for deterministic fetchedAt values.
    */
-  async fetchAll(portToBridgeMap: Map<number, string>, now: Date): Promise<NormalizedLane[]> {
+  async fetchAndNormalize(portToBridgeMap: Map<number, string>, now: Date): Promise<NormalizedLane[]> {
     let rawPorts: CbpApiPort[];
 
     try {
@@ -239,7 +242,21 @@ export class CbpAdapter implements WaitTimeSourceAdapter {
       return [];
     }
 
-    const lanes = this._normalize(rawPorts, portToBridgeMap, now);
+    return this._normalize(rawPorts, portToBridgeMap, now);
+  }
+
+  /**
+   * Fetch fresh CBP data, normalize it, and persist one snapshot per
+   * (bridgeId, laneType). Returns the normalized lanes.
+   *
+   * Composes fetchAndNormalize (fetch+normalize, no persist) with
+   * _persistSnapshots (request-driven, slotStart NULL) — behavior unchanged.
+   *
+   * @param portToBridgeMap  Map<cbpPortNumber, bridgeId>
+   * @param now              Injected clock for deterministic fetchedAt values.
+   */
+  async fetchAll(portToBridgeMap: Map<number, string>, now: Date): Promise<NormalizedLane[]> {
+    const lanes = await this.fetchAndNormalize(portToBridgeMap, now);
     await this._persistSnapshots(lanes, portToBridgeMap);
     return lanes;
   }

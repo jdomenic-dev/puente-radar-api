@@ -38,6 +38,44 @@ export class CbpSnapshotCustomRepository implements CbpSnapshotRepository {
   }
 
   /**
+   * Persist one COLLECTOR-OWNED snapshot with a non-null, cadence-floored slotStart.
+   *
+   * Conflict-safe: ON CONFLICT DO NOTHING (no target needed — applies to any unique
+   * constraint violation, including the partial index UQ_cbp_snapshots_bridge_lane_slot
+   * on (bridgeId, laneType, slotStart) WHERE slotStart IS NOT NULL). A second call for
+   * the same (bridgeId, laneType, slotStart) is suppressed, never throws.
+   *
+   * Distinct from `save()`: request-driven rows from CbpAdapter.getLanes/_persistSnapshots
+   * always write slotStart = NULL and are untouched by this method or its unique index.
+   *
+   * @returns true if a new row was inserted, false if suppressed by the conflict.
+   */
+  async saveSlotSnapshot(row: SnapshotLaneRow & { slotStart: Date }): Promise<boolean> {
+    const inserted = await this.dataSource.query<Array<{ id: string }>>(
+      `
+      INSERT INTO "cbp_snapshots"
+        ("bridgeId", "laneType", "delayMinutes", "lanesOpen", "operationalStatus", "isOpen", "sourceUpdateTimeRaw", "fetchedAt", "slotStart")
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      ON CONFLICT DO NOTHING
+      RETURNING "id"
+      `,
+      [
+        row.bridgeId,
+        row.laneType,
+        row.delayMinutes,
+        row.lanesOpen,
+        row.operationalStatus,
+        row.isOpen,
+        row.sourceUpdateTimeRaw,
+        row.fetchedAt,
+        row.slotStart,
+      ],
+    );
+
+    return inserted.length > 0;
+  }
+
+  /**
    * Return the single most-recent snapshot per (bridgeId, laneType) combination.
    *
    * Uses DISTINCT ON which is supported by PostgreSQL and leverages the
