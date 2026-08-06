@@ -1033,3 +1033,27 @@ describe('CbpAdapter — fetchAndNormalize (persistence-seam extraction)', () =>
     expect(repo.save).toHaveBeenCalledTimes(12);
   });
 });
+
+// ===========================================================================
+// PR4 — Failure isolation: opt-in rethrow for the historical collector
+// (post-verify fix: fetchAndNormalize must let a caller distinguish a real
+// upstream failure from a legitimately empty response; default behavior for
+// fetchAll/getLanes callers is unchanged — see B3.1-d above.)
+// ===========================================================================
+
+describe('CbpAdapter — fetchAndNormalize rethrowOnFailure option (PR4 failure-isolation fix)', () => {
+  it('B4.1-a: { rethrowOnFailure: true } propagates the real fetch error instead of swallowing it to []', async () => {
+    const repo = makeMockRepo();
+    const adapter = makeAdapter(makeFailingFetchMock(new Error('CBP API returned HTTP 503')), repo);
+    await expect(adapter.fetchAndNormalize(PORT_TO_BRIDGE, FIXED_NOW, { rethrowOnFailure: true })).rejects.toThrow(
+      'CBP API returned HTTP 503',
+    );
+  });
+
+  it('B4.1-b: omitting the option (default) still swallows to [] without throwing — fetchAll/getLanes behavior is unaffected', async () => {
+    const repo = makeMockRepo();
+    const adapter = makeAdapter(makeFailingFetchMock(), repo);
+    const lanes = await adapter.fetchAndNormalize(PORT_TO_BRIDGE, FIXED_NOW);
+    expect(lanes).toEqual([]);
+  });
+});

@@ -11,6 +11,7 @@
  *   - EstimateCalculator (injectable wrapper)
  *   - EstimatesService (orchestration)
  *   - EstimatesController (GET /estimates)
+ *   - CbpCollectorService (PR4 — scheduled, slot-aware historical collector; flag-gated no-op)
  */
 
 import { Module } from '@nestjs/common';
@@ -28,10 +29,16 @@ import { EstimatesService } from './estimates.service.js';
 import { EstimatesController } from './estimates.controller.js';
 import { REDIS_CLIENT } from '../redis/redis.module.js';
 import { CBP_CACHE } from './estimates.tokens.js';
+import { CbpCollectionRun } from './historical/entities/cbp-collection-run.entity.js';
+import { CbpCollectorService } from './historical/cbp-collector.service.js';
 import type Redis from 'ioredis';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([CbpSnapshot, EstimateAdjustment]), BridgesModule, ReportsModule],
+  imports: [
+    TypeOrmModule.forFeature([CbpSnapshot, EstimateAdjustment, CbpCollectionRun]),
+    BridgesModule,
+    ReportsModule,
+  ],
   controllers: [EstimatesController],
   providers: [
     // Custom snapshot repository — provides the DISTINCT ON findLatestPerBridgeLane query
@@ -67,6 +74,9 @@ import type Redis from 'ioredis';
 
     EstimateCalculator,
     EstimatesService,
+
+    // Scheduled historical collector — no-op unless HISTORICAL_COLLECTION_ENABLED=true
+    CbpCollectorService,
   ],
   exports: [EstimatesService],
 })
