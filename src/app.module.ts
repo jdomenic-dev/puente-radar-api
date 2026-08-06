@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { ScheduleModule } from '@nestjs/schedule';
 import { APP_GUARD } from '@nestjs/core';
 import { validate } from './config/env.validation.js';
 import { typeormConfig } from './config/typeorm.config.js';
@@ -19,6 +20,10 @@ import { EstimatesModule } from './modules/estimates/estimates.module.js';
       validate,
     }),
     TypeOrmModule.forRootAsync(typeormConfig),
+
+    // Enables @Cron() decorators — used by the scheduled historical CBP collector.
+    // No-op by itself; each job checks HISTORICAL_COLLECTION_ENABLED before doing work.
+    ScheduleModule.forRoot(),
 
     // Redis — global, optional (no REDIS_URL → null client, features degrade gracefully)
     RedisModule,

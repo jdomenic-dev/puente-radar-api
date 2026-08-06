@@ -221,23 +221,27 @@ export class CbpAdapter implements WaitTimeSourceAdapter {
 
   /**
    * Fetch fresh CBP data and normalize it — NO persistence side effect.
+   * Extracted for the historical collector (PR4); never writes through the
+   * adapter's request-driven `save` path.
    *
-   * Extracted for the historical collector (a later PR), which owns its own
-   * slot-aware persistence (CbpSnapshotCustomRepository.saveSlotSnapshot) and
-   * must never write through this adapter's request-driven `save` path.
-   *
-   * On any fetch failure (network error, non-ok HTTP, timeout), returns []
-   * without throwing — callers decide how to handle the empty result.
-   *
-   * @param portToBridgeMap  Map<cbpPortNumber, bridgeId>
-   * @param now              Injected clock for deterministic fetchedAt values.
+   * On fetch failure, returns [] BY DEFAULT — `fetchAll`/`getLanes` never
+   * pass `options`, so their behavior is unchanged. Pass
+   * `{ rethrowOnFailure: true }` to propagate the real error instead — used
+   * by the collector to distinguish a genuine upstream failure from a
+   * legitimately empty response (spec: cbp-historical-collection, "Failure
+   * Isolation and Health").
    */
-  async fetchAndNormalize(portToBridgeMap: Map<number, string>, now: Date): Promise<NormalizedLane[]> {
+  async fetchAndNormalize(
+    portToBridgeMap: Map<number, string>,
+    now: Date,
+    options?: { rethrowOnFailure?: boolean },
+  ): Promise<NormalizedLane[]> {
     let rawPorts: CbpApiPort[];
 
     try {
       rawPorts = await this._fetchFromCbp();
-    } catch {
+    } catch (err) {
+      if (options?.rethrowOnFailure) throw err;
       // Fetch failed — caller handles empty result
       return [];
     }
