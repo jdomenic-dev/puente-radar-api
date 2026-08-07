@@ -34,7 +34,7 @@ bruno/
 ├── collection.bru             # docs + notas generales
 ├── environments/
 │   ├── Local.bru              # baseUrl http://localhost:3000
-│   └── Railway.bru            # baseUrl de producción (ajustar URL)
+│   └── Staging.bru            # baseUrl https://api.puenteradar.com
 ├── Health/
 │   └── Health check
 ├── Bridges/
