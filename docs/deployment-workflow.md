@@ -337,6 +337,29 @@ ADMIN_API_KEY=<generated with openssl rand -hex 32>
 
 `ADMIN_API_KEY` is required in production and must contain at least 32 non-whitespace characters. Only `GET /health` and `POST /reports` are public; all other API routes require its exact configured value in `x-api-key`. Do not commit this file or print its contents in CI logs.
 
+### Historical collection variables (HBTR feature)
+
+The scheduled CBP collector and the historical-patterns endpoint are **off by default**; enable them only with these variables in the same env file. All have safe defaults, so adding none of them is valid:
+
+```env
+# Timezone for local grouping (default America/Ciudad_Juarez)
+HISTORICAL_TZ=America/Ciudad_Juarez
+# Scheduled collection every HISTORICAL_CADENCE_MINUTES via cron (default "false")
+HISTORICAL_COLLECTION_ENABLED=false
+# Exposes GET /historical-patterns (default "false")
+HISTORICAL_API_ENABLED=false
+# Cadence for slot bucketing (default 15; cron remains fixed at 15 minutes)
+HISTORICAL_CADENCE_MINUTES=15
+# Minimum comparable local dates for sufficient evidence (default 6)
+HISTORICAL_MIN_DATES=6
+# Minimum coverage ratio for sufficient evidence (default 0.7)
+HISTORICAL_MIN_COVERAGE_RATIO=0.7
+```
+
+> **Production gate:** `HISTORICAL_COLLECTION_ENABLED=true` polls the undocumented CBP JSON endpoint on a fixed cadence. Do not enable it in production until the crossing-direction and polling-rate/ToS confirmation from the PR1 audit is obtained. `HISTORICAL_API_ENABLED=true` alone is safe; without collected slots the endpoint returns `insufficientData`.
+
+> **Applying changes:** the running container only reads this env file at start. After editing the file, recreate the container (`docker rm -f puente-radar-api && docker run ...` per `scripts/ec2-deploy.sh`) or trigger a fresh deployment through the CI/CD pipeline.
+
 ## Network boundaries
 
 | Connection | Direction | Port | Rule |
@@ -452,6 +475,7 @@ docker logs --tail 100 puente-radar-api
 - [ ] The RDS security group permits PostgreSQL from the EC2 security group.
 - [ ] `DATABASE_SSL=true` is configured for RDS.
 - [ ] `ADMIN_API_KEY` is configured with at least 32 non-whitespace characters.
+- [ ] Historical flags are set intentionally: `HISTORICAL_COLLECTION_ENABLED=true` only after the external CBP audit gate approves polling; `HISTORICAL_API_ENABLED=true` when the endpoint should be public.
 - [ ] Nginx configuration passes `sudo nginx -t`.
 - [ ] EC2 security-group ports 80 and 443 are public; port 3000 is not public.
 

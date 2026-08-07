@@ -1,0 +1,62 @@
+meta {
+  name: Get historical patterns
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/historical-patterns
+  body: none
+  auth: none
+}
+
+headers {
+  x-api-key: {{apiKey}}
+}
+
+params:query {
+  laneType: general
+  dayOfWeek: 1
+  time: 06:00
+}
+
+docs {
+  # GET /historical-patterns
+
+  Línea base histórica **descriptiva** de tiempos de espera CBP por puente,
+  separada de `/estimates`. Devuelve un objeto por puente activo.
+
+  > No es un pronóstico ni modela escuelas, eventos, clima ni comportamiento
+  > southbound. Solo describe evidencia CBP pasada.
+
+  ## Query params (todos requeridos)
+
+  - `laneType` — `general | ready_lane | sentri | pedestrian`
+  - `dayOfWeek` — 0 (domingo) a 6 (sábado)
+  - `time` — hora local `America/Ciudad_Juarez` en bins de 30 min: `HH:00` o `HH:30`
+
+  > Cualquier `time` fuera de `:00`/`:30` (ej. `06:15`) o un `dayOfWeek`/`laneType`
+  > inválido devuelve **400 Bad Request**.
+
+  ## Campos de respuesta (por puente)
+
+  - `descriptiveBaseline` — etiqueta descriptiva (nunca un pronóstico)
+  - `median` / `p25` / `p75` — minutos estimados (null si datos insuficientes)
+  - `observationCount` / `comparableLocalDates` — evidencia agregada por fecha local única
+  - `coveragePeriod: { start, end }` y `coverageRatio` — cobertura del período
+  - `closureRate` — tasa de cierres (las horas cerradas no contaminan la distribución)
+  - `confidence` — low (<12 fechas) | medium (12–23) | high (≥24)
+  - `insufficientData` — true si no alcanza `HISTORICAL_MIN_DATES` (6) o
+    `HISTORICAL_MIN_COVERAGE_RATIO` (0.7), o solo hay cierres
+  - `generatedAt` — timestamp de generación
+
+  ## Requiere el flag
+
+  El endpoint devuelve **404** si `HISTORICAL_API_ENABLED` no está en `"true"`
+  (default). La colección también requiere `HISTORICAL_COLLECTION_ENABLED=true`
+  y datos históricos sembrados para que este response tenga distribución.
+}
+
+assert {
+  res.status: eq 200
+}

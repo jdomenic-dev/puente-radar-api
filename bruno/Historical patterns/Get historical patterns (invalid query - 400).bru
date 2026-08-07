@@ -1,0 +1,33 @@
+meta {
+  name: Get historical patterns (invalid query - 400)
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/historical-patterns
+  body: none
+  auth: none
+}
+
+headers {
+  x-api-key: {{apiKey}}
+}
+
+params:query {
+  laneType: carpool
+  dayOfWeek: 7
+  time: 06:15
+}
+
+docs {
+  # GET /historical-patterns?<invalido>
+
+  Demuestra la validación estricta: `laneType` fuera del enum,
+  `dayOfWeek > 6`, o `time` fuera de un bin de 30 min (`06:15`)
+  devuelve **400 Bad Request**.
+}
+
+assert {
+  res.status: eq 400
+}

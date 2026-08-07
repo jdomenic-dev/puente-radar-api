@@ -49,12 +49,15 @@ bruno/
 │   ├── Home summary
 │   ├── Recent by bridge
 │   └── Rate limit test (429)
-└── Estimates/
-    ├── Get estimates (general)
-    ├── Get estimates (ready lane)
-    ├── Get estimates (sentri)
-    ├── Get estimates (pedestrian)
-    └── Get estimates (invalid lane - 400)
+├── Estimates/
+│   ├── Get estimates (general)
+│   ├── Get estimates (ready lane)
+│   ├── Get estimates (sentri)
+│   ├── Get estimates (pedestrian)
+│   └── Get estimates (invalid lane - 400)
+└── Historical patterns/
+    ├── Get historical patterns
+    └── Get historical patterns (invalid query - 400)
 ```
 
 ## Variables de entorno
@@ -72,4 +75,7 @@ bruno/
 - `POST /reports` tiene rate limit de **5 req/min por IP** (429 al pasarse).
 - Only `GET /health` and `POST /reports` are public. Every other API request requires `x-api-key`.
 - `GET /estimates` cachea en Redis con TTL de 15 min.
+- `GET /historical-patterns` devuelve **404** a menos que `HISTORICAL_API_ENABLED=true`.
+  Para ver distribución en lugar de `insufficientData`, activá `HISTORICAL_COLLECTION_ENABLED=true`
+  y esperá varias corridas (mínimo 6 fechas locales y 70% de cobertura).
 - Swagger is available at `{{baseUrl}}/api/docs` only in development and test; use **Authorize** to set `x-api-key`.

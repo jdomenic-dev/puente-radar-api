@@ -27,5 +27,9 @@ docs {
   - Only `GET /health` and `POST /reports` are public; every other API request requires `x-api-key`.
   - `GET /estimates` combina CBP oficial + reportes comunitarios + ajuste admin,
     con caché Redis (TTL 15 min).
+  - `GET /historical-patterns` es la línea base histórica CBP descriptiva (nunca un
+    pronóstico). Devuelve **404** salvo que `HISTORICAL_API_ENABLED=true`; necesita
+    datos históricos recolectados (`HISTORICAL_COLLECTION_ENABLED=true`) para que su
+    distribución no venga como `insufficientData`.
   - Swagger is available at `{{baseUrl}}/api/docs` only in development and test.
 }
