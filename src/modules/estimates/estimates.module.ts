@@ -32,7 +32,7 @@ import { CBP_CACHE } from './estimates.tokens.js';
 import { CbpCollectionRun } from './historical/entities/cbp-collection-run.entity.js';
 import { CbpCollectorService } from './historical/cbp-collector.service.js';
 import { HistoricalRepository } from './historical/historical.repository.js';
-import { HistoricalPatternsService } from './historical/historical-patterns.service.js';
+import { HISTORICAL_CLOCK, HistoricalPatternsService } from './historical/historical-patterns.service.js';
 import { HistoricalPatternsController } from './historical/historical.controller.js';
 import type Redis from 'ioredis';
 
@@ -81,6 +81,7 @@ import type Redis from 'ioredis';
     // Scheduled historical collector — no-op unless HISTORICAL_COLLECTION_ENABLED=true
     CbpCollectorService,
     HistoricalRepository,
+    { provide: HISTORICAL_CLOCK, useValue: () => new Date() },
     HistoricalPatternsService,
   ],
   exports: [EstimatesService],

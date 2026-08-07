@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { BridgesService } from '../../bridges/bridges.service.js';
 import { HistoricalPatternRow, HistoricalRepository } from './historical.repository.js';
@@ -10,13 +10,15 @@ export interface HistoricalPatternQuery {
   time: string;
 }
 
+export const HISTORICAL_CLOCK = Symbol('HISTORICAL_CLOCK');
+
 @Injectable()
 export class HistoricalPatternsService {
   constructor(
     private readonly repository: HistoricalRepository,
     private readonly bridgesService: BridgesService,
     private readonly configService: ConfigService,
-    private readonly now: () => Date = () => new Date(),
+    @Inject(HISTORICAL_CLOCK) private readonly now: () => Date,
   ) {}
 
   async getPatterns(query: HistoricalPatternQuery) {
