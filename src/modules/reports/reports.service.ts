@@ -43,7 +43,8 @@ export class ReportsService {
       bridgeId: dto.bridgeId,
       reportedWaitMinutes: dto.reportedWaitMinutes ?? null,
       laneType: dto.laneType,
-      lineStatus: dto.lineStatus,
+      // Moderation state: always starts pending, whatever the client sent.
+      lineStatus: ReportStatus.Pending,
       comment: dto.comment ?? null,
       anonymousDeviceId: dto.anonymousDeviceId ?? null,
       source: ReportSource.User,

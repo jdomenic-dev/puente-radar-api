@@ -97,6 +97,42 @@ describe('CreateReportDto validation', () => {
     expect(laneTypeError).toBeUndefined();
   });
 
+  it('accepts a payload without lineStatus (it is a moderation state set by the server)', async () => {
+    const dto = plainToInstance(CreateReportDto, {
+      bridgeId: '3f1c7e52-0a4b-4c86-9d11-5a0b6c8e2a01',
+      laneType: LaneType.Pedestrian,
+      reportedWaitMinutes: 20,
+      comment: 'Fila corta',
+    });
+
+    const errors = await validate(dto);
+
+    expect(errors).toEqual([]);
+  });
+
+  it('accepts every lane type the app can report, pedestrian included', async () => {
+    for (const laneType of Object.values(LaneType)) {
+      const dto = plainToInstance(CreateReportDto, {
+        bridgeId: '3f1c7e52-0a4b-4c86-9d11-5a0b6c8e2a01',
+        laneType,
+        reportedWaitMinutes: 15,
+      });
+      expect(await validate(dto)).toEqual([]);
+    }
+  });
+
+  it('keeps the wait between 0 and 360 whole minutes', async () => {
+    for (const reportedWaitMinutes of [-1, 361, 12.5]) {
+      const dto = plainToInstance(CreateReportDto, {
+        bridgeId: '3f1c7e52-0a4b-4c86-9d11-5a0b6c8e2a01',
+        laneType: LaneType.General,
+        reportedWaitMinutes,
+      });
+      const errors = await validate(dto);
+      expect(errors.map((e) => e.property)).toContain('reportedWaitMinutes');
+    }
+  });
+
   it('rejects an invalid laneType value', async () => {
     const dto = plainToInstance(CreateReportDto, {
       bridgeId: '00000000-0000-0000-0000-000000000001',
@@ -168,6 +204,42 @@ describe('ReportsService', () => {
       expect(repo.save).toHaveBeenCalled();
       expect(result).toEqual(created);
     });
+
+    it('stores a report without lineStatus as pending', async () => {
+      mockBridgesService.findOneById.mockResolvedValue(makeBridge());
+      const created = makeReport();
+      repo.create!.mockReturnValue(created);
+      repo.save!.mockResolvedValue(created);
+
+      await service.create({
+        bridgeId: 'bridge-uuid-1',
+        laneType: LaneType.Pedestrian,
+        reportedWaitMinutes: 10,
+      });
+
+      expect(repo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ lineStatus: ReportStatus.Pending, laneType: LaneType.Pedestrian }),
+      );
+    });
+
+    it.each([ReportStatus.Verified, ReportStatus.Rejected])(
+      'ignores a client-sent lineStatus of %s: moderation is never set by the reporter',
+      async (clientStatus) => {
+        mockBridgesService.findOneById.mockResolvedValue(makeBridge());
+        const created = makeReport();
+        repo.create!.mockReturnValue(created);
+        repo.save!.mockResolvedValue(created);
+
+        await service.create({
+          bridgeId: 'bridge-uuid-1',
+          laneType: LaneType.General,
+          lineStatus: clientStatus,
+          reportedWaitMinutes: 30,
+        });
+
+        expect(repo.create).toHaveBeenCalledWith(expect.objectContaining({ lineStatus: ReportStatus.Pending }));
+      },
+    );
 
     it('saves reportedWaitMinutes as null (not 0) when omitted', async () => {
       mockBridgesService.findOneById.mockResolvedValue(makeBridge());

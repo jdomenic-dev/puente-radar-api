@@ -28,12 +28,16 @@ export class CreateReportDto {
   @IsEnum(LaneType)
   laneType: LaneType;
 
-  @ApiProperty({
-    description: 'Current line status at the crossing',
+  @ApiPropertyOptional({
+    description:
+      'Deprecated and ignored. lineStatus is the moderation state of the report and is always ' +
+      'set to "pending" by the server; clients should not send it.',
     enum: ReportStatus,
+    deprecated: true,
   })
+  @IsOptional()
   @IsEnum(ReportStatus)
-  lineStatus: ReportStatus;
+  lineStatus?: ReportStatus;
 
   @ApiPropertyOptional({ description: 'Optional comment (max 300 chars)', maxLength: 300 })
   @IsOptional()
