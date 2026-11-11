@@ -32,4 +32,20 @@ export class EstimatesController {
   getEstimates(@Query() query: EstimatesQueryDto) {
     return this.estimatesService.getEstimates(query.laneType);
   }
+
+  // Declared after the bare @Get(): Nest matches static paths regardless of order here
+  // because "estimates" has no :param route, but keeping it below avoids surprises later.
+  @Get('overview')
+  @ApiOperation({
+    summary: 'Home overview: every bridge with all lanes (general, ready_lane, sentri, pedestrian)',
+    description:
+      'One call for the Home screen. Per bridge: names, schedule, open state, recent report count and, ' +
+      'per lane: estimated wait, status (low <= 30 min, medium <= 60, high <= 120, saturated above), ' +
+      'trend (rising | steady | falling), lanes open, availability and the best-option flag. ' +
+      'Lanes are resolved sequentially so a stale CBP cache is refreshed once.',
+  })
+  @ApiOkResponse({ description: 'Overview of every active bridge, in catalog order.' })
+  getOverview() {
+    return this.estimatesService.getOverview();
+  }
 }

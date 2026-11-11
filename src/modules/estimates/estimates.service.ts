@@ -35,6 +35,8 @@ import { CbpSnapshotCustomRepository, CBP_SNAPSHOT_REPOSITORY } from './cbp-snap
 import { EstimateAdjustment } from './entities/estimate-adjustment.entity.js';
 import { EstimateCalculator } from './estimate.calculator.js';
 import { LaneType } from '../../common/enums/lane.enum.js';
+import { OVERVIEW_LANES, buildBridgeOverview } from './overview.js';
+import type { OverviewResponse } from './overview.js';
 import type { NormalizedLane } from './sources/wait-time-source.adapter.js';
 import type { SnapshotLaneRow } from './sources/cbp.adapter.js';
 
@@ -82,6 +84,37 @@ export class EstimatesService {
     private readonly calculator: EstimateCalculator,
     private readonly configService: ConfigService,
   ) {}
+
+  /**
+   * Every bridge with all its lanes, for the Home screen.
+   *
+   * The lanes are queried one after another on purpose: each getEstimates() call checks
+   * the CBP freshness window in PostgreSQL and refreshes it when stale, so running them
+   * concurrently could fetch CBP (and write snapshots) several times for one request.
+   */
+  async getOverview(): Promise<OverviewResponse> {
+    const bridges = await this.bridgesService.findActive();
+
+    const entriesByLane = new Map<LaneType, Map<string, EstimateResponseEntry>>();
+    for (const lane of OVERVIEW_LANES) {
+      const entries = await this.getEstimates(lane);
+      entriesByLane.set(lane, new Map(entries.map((entry) => [entry.bridgeId, entry])));
+    }
+
+    const summaries = await this.bridgesService.getHomeSummary();
+    const reportCounts = new Map(summaries.map((summary) => [summary.id, summary.recentReportCount]));
+
+    return {
+      generatedAt: new Date().toISOString(),
+      bridges: bridges.map((bridge) =>
+        buildBridgeOverview(
+          bridge,
+          Object.fromEntries(OVERVIEW_LANES.map((lane) => [lane, entriesByLane.get(lane)?.get(bridge.id)])),
+          reportCounts.get(bridge.id) ?? 0,
+        ),
+      ),
+    };
+  }
 
   async getEstimates(laneType: LaneType): Promise<EstimateResponseEntry[]> {
     const now = new Date();

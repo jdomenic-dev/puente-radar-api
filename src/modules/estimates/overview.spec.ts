@@ -1,0 +1,171 @@
+import { buildBridgeOverview, buildLaneOverview, mapTrend } from './overview.js';
+import { LaneType } from '../../common/enums/lane.enum.js';
+import { BridgeStatus } from '../../common/enums/bridge.enum.js';
+import type { Bridge } from '../bridges/entities/bridge.entity.js';
+import type { EstimateResponseEntry } from './estimates.service.js';
+
+function entry(overrides: Partial<EstimateResponseEntry> = {}): EstimateResponseEntry {
+  return {
+    bridgeId: 'b1',
+    bridgeName: 'Puente Santa Teresa',
+    laneType: LaneType.General,
+    lanesOpen: 4,
+    estimatedWaitMinutes: 12,
+    status: 'low',
+    confidence: 'high',
+    confidenceScore: 90,
+    trend: 'down',
+    sourcesUsed: ['official', 'community'],
+    lastUpdatedAt: '2026-11-11T16:00:00.000Z',
+    fetchedAt: '2026-11-11T16:00:00.000Z',
+    laneAvailable: true,
+    isBestOption: true,
+    bestOptionFallback: false,
+    ...overrides,
+  };
+}
+
+function bridge(overrides: Partial<Bridge> = {}): Bridge {
+  return {
+    id: 'b1',
+    name: 'Puente Santa Teresa',
+    slug: 'puente-santa-teresa',
+    status: BridgeStatus.Low,
+    waitMinutes: null,
+    trend: null,
+    cbpPortNumber: 240801,
+    sortOrder: 6,
+    shortName: 'Santa Teresa',
+    latitude: 31.78287,
+    longitude: -106.67976,
+    opensAt: '06:00',
+    closesAt: '22:00',
+    lastUpdatedAt: new Date('2026-11-11T15:59:00.000Z'),
+    reports: [],
+    ...overrides,
+  };
+}
+
+describe('mapTrend', () => {
+  it('uses the same vocabulary as the bridge entity and the app', () => {
+    expect(mapTrend('up')).toBe('rising');
+    expect(mapTrend('down')).toBe('falling');
+    expect(mapTrend('stable')).toBe('steady');
+  });
+});
+
+describe('buildLaneOverview', () => {
+  it('describes an available lane', () => {
+    expect(buildLaneOverview(entry())).toEqual({
+      estimatedWaitMinutes: 12,
+      status: 'low',
+      trend: 'falling',
+      lanesOpen: 4,
+      available: true,
+      unavailableReason: null,
+      confidence: 'high',
+      isBestOption: true,
+      sourceStale: false,
+    });
+  });
+
+  it('reports a closed lane without a wait, status or trend', () => {
+    const lane = buildLaneOverview(
+      entry({
+        laneAvailable: false,
+        estimatedWaitMinutes: undefined,
+        estimateUnavailable: 'laneClosed',
+        lanesOpen: 0,
+        isBestOption: false,
+      }),
+    );
+
+    expect(lane).toMatchObject({
+      estimatedWaitMinutes: null,
+      status: null,
+      trend: null,
+      lanesOpen: 0,
+      available: false,
+      unavailableReason: 'laneClosed',
+      isBestOption: false,
+    });
+  });
+
+  it('flags stale official data', () => {
+    expect(buildLaneOverview(entry({ sourceStale: true })).sourceStale).toBe(true);
+  });
+
+  it('treats a lane with no entry as having no data', () => {
+    expect(buildLaneOverview(undefined)).toEqual({
+      estimatedWaitMinutes: null,
+      status: null,
+      trend: null,
+      lanesOpen: null,
+      available: false,
+      unavailableReason: 'noData',
+      confidence: 'low',
+      isBestOption: false,
+      sourceStale: false,
+    });
+  });
+});
+
+describe('buildBridgeOverview', () => {
+  const allLanes = (e: EstimateResponseEntry): Partial<Record<LaneType, EstimateResponseEntry>> => ({
+    [LaneType.General]: e,
+    [LaneType.ReadyLane]: { ...e, laneType: LaneType.ReadyLane, estimatedWaitMinutes: 8 },
+    [LaneType.Sentri]: { ...e, laneType: LaneType.Sentri, estimatedWaitMinutes: 5 },
+    [LaneType.Pedestrian]: { ...e, laneType: LaneType.Pedestrian, estimatedWaitMinutes: 10 },
+  });
+
+  it('exposes the four lanes, pedestrian included, keyed by lane type', () => {
+    const result = buildBridgeOverview(bridge(), allLanes(entry()), 12);
+
+    expect(Object.keys(result.lanes).sort()).toEqual(['general', 'pedestrian', 'ready_lane', 'sentri']);
+    expect(result.lanes.pedestrian.estimatedWaitMinutes).toBe(10);
+    expect(result.lanes.sentri.estimatedWaitMinutes).toBe(5);
+  });
+
+  it('carries the catalog data the Home needs', () => {
+    expect(buildBridgeOverview(bridge(), allLanes(entry()), 12)).toMatchObject({
+      id: 'b1',
+      slug: 'puente-santa-teresa',
+      name: 'Puente Santa Teresa',
+      shortName: 'Santa Teresa',
+      direction: 'MX_TO_US',
+      sortOrder: 6,
+      schedule: { is24h: false, label: '6:00 – 22:00' },
+      recentReportCount: 12,
+      lastUpdatedAt: '2026-11-11T15:59:00.000Z',
+    });
+  });
+
+  it('falls back to the full name when there is no short name', () => {
+    expect(buildBridgeOverview(bridge({ shortName: null }), allLanes(entry()), 0).shortName).toBe(
+      'Puente Santa Teresa',
+    );
+  });
+
+  it('reports a 24 hour schedule when no opening hours are set', () => {
+    const result = buildBridgeOverview(bridge({ opensAt: null, closesAt: null }), allLanes(entry()), 0);
+    expect(result.schedule).toEqual({ is24h: true, label: 'Abierto 24 horas' });
+  });
+
+  it('is open while at least one lane is not closed', () => {
+    const closed = entry({ laneAvailable: false, estimateUnavailable: 'laneClosed', estimatedWaitMinutes: undefined });
+    const lanes = { ...allLanes(entry()), [LaneType.General]: closed };
+
+    expect(buildBridgeOverview(bridge(), lanes, 0).isOpen).toBe(true);
+  });
+
+  it('is closed when every lane is closed', () => {
+    const closed = entry({ laneAvailable: false, estimateUnavailable: 'laneClosed', estimatedWaitMinutes: undefined });
+    const lanes = allLanes(closed);
+
+    expect(buildBridgeOverview(bridge(), lanes, 0).isOpen).toBe(false);
+  });
+
+  it('has a null lastUpdatedAt when the bridge was never updated', () => {
+    expect(buildBridgeOverview(bridge({ lastUpdatedAt: null }), allLanes(entry()), 0).lastUpdatedAt).toBeNull();
+  });
+});
