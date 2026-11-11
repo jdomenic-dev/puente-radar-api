@@ -1,3 +1,4 @@
+import type { Server } from 'node:http';
 import { Controller, Get, INestApplication } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
@@ -41,7 +42,9 @@ describe('GlobalSecurityModule', () => {
     const app = await createApp(3);
     const statuses: number[] = [];
     for (let i = 0; i < 5; i++) {
-      const res = await request(app.getHttpServer()).get('/probe/private').set('x-api-key', 'wrong');
+      const res = await request(app.getHttpServer() as Server)
+        .get('/probe/private')
+        .set('x-api-key', 'wrong');
       statuses.push(res.status);
     }
     await app.close();
@@ -52,7 +55,7 @@ describe('GlobalSecurityModule', () => {
 
   it('serves protected routes with the right key and public routes without one', async () => {
     const app = await createApp(100);
-    const server = app.getHttpServer();
+    const server = app.getHttpServer() as Server;
 
     const withKey = await request(server).get('/probe/private').set('x-api-key', KEY);
     const withoutKey = await request(server).get('/probe/private');

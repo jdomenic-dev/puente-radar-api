@@ -52,9 +52,9 @@ function collectOperations(document: OpenAPIObject): Operation[] {
   const operations: Operation[] = [];
   for (const [path, item] of Object.entries(document.paths)) {
     for (const method of HTTP_METHODS) {
-      const operation = (item as Record<string, unknown>)[method];
-      if (operation) {
-        operations.push({ ...(operation as object), key: `${method.toUpperCase()} ${path}` } as Operation);
+      const operation: unknown = (item as Record<string, unknown>)[method];
+      if (operation && typeof operation === 'object') {
+        operations.push({ ...operation, key: `${method.toUpperCase()} ${path}` });
       }
     }
   }
