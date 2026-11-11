@@ -12,6 +12,9 @@ AWS_REGION="${2:-}"
 APP_CONTAINER=puente-radar-api
 BACKUP_CONTAINER=puente-radar-api-rollback
 ENV_FILE=/home/ec2-user/puente-radar.env
+NETWORK=puente-radar-net
+REDIS_CONTAINER=puente-radar-redis
+REDIS_IMAGE=redis:7-alpine
 HAD_PREVIOUS=false
 
 if [ -z "$AWS_REGION" ]; then
@@ -45,6 +48,38 @@ rollback() {
   fi
 }
 
+# Redis runs next to the API on a private Docker network (no published port, so only the API
+# container can reach it). It holds rate-limit counters and the CBP cache, both disposable, so
+# there is no persistence. A failure here never blocks a deploy: the API falls back to memory.
+ensure_redis() {
+  docker network inspect "$NETWORK" >/dev/null 2>&1 || docker network create "$NETWORK" >/dev/null
+  if [ "$(docker inspect -f '{{.State.Running}}' "$REDIS_CONTAINER" 2>/dev/null || true)" = true ]; then
+    echo "Redis already running"
+    return 0
+  fi
+  docker rm -f "$REDIS_CONTAINER" >/dev/null 2>&1 || true
+  docker run -d \
+    --name "$REDIS_CONTAINER" \
+    --restart unless-stopped \
+    --network "$NETWORK" \
+    --memory 96m \
+    "$REDIS_IMAGE" \
+    redis-server --maxmemory 64mb --maxmemory-policy volatile-lru --save "" --appendonly no
+  sleep 2
+  docker exec "$REDIS_CONTAINER" redis-cli ping
+}
+
+echo "Ensuring Redis"
+if ! ensure_redis; then
+  echo "WARNING: Redis is not available; the API will count requests in memory." >&2
+fi
+
+# Point the API at Redis unless the env file already sets REDIS_URL.
+REDIS_ARGS=()
+if ! grep -q '^REDIS_URL=' "$ENV_FILE"; then
+  REDIS_ARGS=(-e "REDIS_URL=redis://$REDIS_CONTAINER:6379")
+fi
+
 echo "Authenticating to ECR"
 aws ecr get-login-password --region "$AWS_REGION" | \
   docker login --username AWS --password-stdin "${IMAGE_URI%%/*}"
@@ -76,8 +111,10 @@ echo "Starting new container"
 if ! docker run -d \
   --name "$APP_CONTAINER" \
   --restart unless-stopped \
+  --network "$NETWORK" \
   -p 127.0.0.1:3000:3000 \
   --env-file "$ENV_FILE" \
+  "${REDIS_ARGS[@]}" \
   "$IMAGE_URI"; then
   rollback || true
   exit 1
