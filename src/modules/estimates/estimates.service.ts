@@ -70,8 +70,15 @@ export interface EstimateResponseEntry {
 // EstimatesService
 // ---------------------------------------------------------------------------
 
+/** How long a computed overview is reused. CBP data changes every few minutes. */
+const OVERVIEW_CACHE_TTL_MS = 30_000;
+
 @Injectable()
 export class EstimatesService {
+  /** Public endpoint: keep a short-lived copy so bursts of requests cost one computation. */
+  private overviewCache: { value: OverviewResponse; expiresAt: number } | null = null;
+  private overviewInFlight: Promise<OverviewResponse> | null = null;
+
   constructor(
     private readonly bridgesService: BridgesService,
     private readonly reportsService: ReportsService,
@@ -93,6 +100,24 @@ export class EstimatesService {
    * concurrently could fetch CBP (and write snapshots) several times for one request.
    */
   async getOverview(): Promise<OverviewResponse> {
+    const now = Date.now();
+    if (this.overviewCache && this.overviewCache.expiresAt > now) {
+      return this.overviewCache.value;
+    }
+
+    // Callers that arrive while the overview is being computed share that one computation.
+    this.overviewInFlight ??= this.buildOverview()
+      .then((value) => {
+        this.overviewCache = { value, expiresAt: Date.now() + OVERVIEW_CACHE_TTL_MS };
+        return value;
+      })
+      .finally(() => {
+        this.overviewInFlight = null;
+      });
+    return this.overviewInFlight;
+  }
+
+  private async buildOverview(): Promise<OverviewResponse> {
     const bridges = await this.bridgesService.findActive();
 
     const entriesByLane = new Map<LaneType, Map<string, EstimateResponseEntry>>();

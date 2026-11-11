@@ -96,6 +96,56 @@ describe('EstimatesService.getOverview()', () => {
     expect(maxRunning).toBe(1);
   });
 
+  describe('short-lived cache', () => {
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    it('serves repeated calls from memory so a burst of requests hits the database once', async () => {
+      const service = makeService();
+      const spy = stubEstimates(service);
+
+      const first = await service.getOverview();
+      const second = await service.getOverview();
+
+      expect(second).toBe(first);
+      expect(spy).toHaveBeenCalledTimes(4); // four lanes, computed once
+      expect(bridgesService.findActive).toHaveBeenCalledTimes(1);
+    });
+
+    it('shares one computation between concurrent callers', async () => {
+      const service = makeService();
+      const spy = stubEstimates(service);
+
+      await Promise.all([service.getOverview(), service.getOverview(), service.getOverview()]);
+
+      expect(spy).toHaveBeenCalledTimes(4);
+    });
+
+    it('recomputes after the cache expires', async () => {
+      jest.useFakeTimers({ now: new Date('2026-11-11T12:00:00Z') });
+      const service = makeService();
+      const spy = stubEstimates(service);
+
+      await service.getOverview();
+      jest.setSystemTime(new Date('2026-11-11T12:00:31Z'));
+      await service.getOverview();
+
+      expect(spy).toHaveBeenCalledTimes(8);
+    });
+
+    it('does not cache a failure: the next call tries again', async () => {
+      const service = makeService();
+      stubEstimates(service);
+      bridgesService.findActive.mockRejectedValueOnce(new Error('db down'));
+
+      await expect(service.getOverview()).rejects.toThrow('db down');
+      const retry = await service.getOverview();
+
+      expect(retry.bridges).toHaveLength(2);
+    });
+  });
+
   it('returns every active bridge with its four lanes, in catalog order', async () => {
     const service = makeService();
     stubEstimates(service, (lane) => (lane === LaneType.Sentri ? 5 : 12));
