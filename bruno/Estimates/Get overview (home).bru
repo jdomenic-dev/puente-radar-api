@@ -1,0 +1,32 @@
+meta {
+  name: Get overview (home)
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}/estimates/overview
+  body: none
+  auth: none
+}
+
+headers {
+  x-api-key: {{apiKey}}
+}
+
+docs {
+  # GET /estimates/overview
+
+  Vista del Home: todos los puentes con los cuatro carriles (general, ready_lane,
+  sentri y pedestrian) en una sola llamada.
+
+  - `lanes.<carril>.status`: low <= 30 min, medium <= 60, high <= 120, saturated.
+  - `lanes.<carril>.trend`: rising | steady | falling.
+  - `isOpen` es false solo si todos los carriles están cerrados.
+  - No existe `lanesTotal`: CBP no publica el total por tipo de carril.
+}
+
+assert {
+  res.status: eq 200
+  res.body.bridges: isArray
+}
