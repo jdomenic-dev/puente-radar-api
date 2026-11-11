@@ -26,9 +26,21 @@ docs {
   - `puente-stanton-lerdo` (Stanton/Lerdo — CBP 240204)
   - `puente-guadalupe-tornillo` (Tornillo — CBP 240401)
   - `puente-santa-teresa` (Santa Teresa — CBP 240801)
+
+  ## Catálogo (agregado en la migración BridgeCatalog)
+
+  - `shortName`: nombre corto para la UI ("Santa Teresa").
+  - `latitude` / `longitude`: el cruce, para direcciones.
+  - `opensAt` / `closesAt`: horario local "HH:mm" ("24:00" = medianoche).
+    **Ambos null = abierto 24 horas.**
+
+  Horarios según CBP y coordenadas según OpenStreetMap (verificados el 2026-11-11).
 }
 
 assert {
   res.status: eq 200
   res.body.slug: eq puente-libre
+  res.body.shortName: isString
+  res.body.latitude: isNumber
+  res.body.longitude: isNumber
 }

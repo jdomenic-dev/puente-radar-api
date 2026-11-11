@@ -14,7 +14,6 @@ body:json {
   {
     "bridgeId": "{{bridgeId}}",
     "laneType": "general",
-    "lineStatus": "pending",
     "reportedWaitMinutes": 45,
     "comment": "Voy por las banderas, fila moderada",
     "anonymousDeviceId": "device-demo-001"
@@ -30,7 +29,8 @@ docs {
 
   - `bridgeId` (req): UUID del puente. Usa `{{bridgeId}}` (corré List bridges).
   - `laneType` (req): `general` | `ready_lane` | `sentri` | `pedestrian`
-  - `lineStatus` (req): `pending` | `verified` | `rejected`
+  - `lineStatus`: **no lo envíes**. Es el estado de moderación; el servidor siempre guarda
+    `pending` (ver "Create report (lineStatus ignored)").
   - `reportedWaitMinutes` (opc): entero 0–360. Si se omite NO se guarda como 0.
   - `comment` (opc): máx 300 chars.
   - `anonymousDeviceId` (opc): identificador anónimo del dispositivo.
@@ -43,4 +43,5 @@ docs {
 
 assert {
   res.status: eq 201
+  res.body.lineStatus: eq pending
 }

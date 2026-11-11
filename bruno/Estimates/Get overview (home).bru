@@ -28,5 +28,8 @@ docs {
 
 assert {
   res.status: eq 200
+  res.body.generatedAt: isString
   res.body.bridges: isArray
+  res.body.bridges[0].lanes.pedestrian: isDefined
+  res.body.bridges[0].schedule.label: isString
 }

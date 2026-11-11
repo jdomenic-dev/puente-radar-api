@@ -45,6 +45,7 @@ bruno/
 │   └── Update bridge status
 ├── Reports/
 │   ├── Create report
+│   ├── Create report (lineStatus ignored)
 │   ├── List reports
 │   ├── Home summary
 │   ├── Recent by bridge
@@ -54,6 +55,7 @@ bruno/
 │   ├── Get estimates (ready lane)
 │   ├── Get estimates (sentri)
 │   ├── Get estimates (pedestrian)
+│   ├── Get overview (home)        # todos los puentes y carriles en una llamada
 │   └── Get estimates (invalid lane - 400)
 └── Historical patterns/
     ├── Get historical patterns
