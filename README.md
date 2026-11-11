@@ -83,9 +83,9 @@ http://localhost:3000/api/docs
 | `CORS_ORIGIN` | `http://localhost:3001` | Allowed CORS origin |
 | `ADMIN_API_KEY` | — | Static key for protected endpoints; required in production with at least 32 non-whitespace characters |
 | `JSON_BODY_LIMIT` | `50kb` | Max JSON body size |
-| `REDIS_URL` | — | Optional Redis connection URL |
+| `REDIS_URL` | — | Optional Redis URL: shared rate-limit counters and CBP cache. Falls back to memory if unset or down |
 | `THROTTLE_TTL_MS` | `60000` | Rate-limit window |
-| `THROTTLE_LIMIT` | `60` | Max requests per window |
+| `THROTTLE_LIMIT` | `120` | Max requests per window, per IP and endpoint |
 | `THROTTLE_REPORTS_LIMIT` | `5` | Max `POST /reports` per minute |
 | `CBP_BASE_URL` | `https://bwt.cbp.gov/api/waittimes` | CBP wait-times endpoint |
 

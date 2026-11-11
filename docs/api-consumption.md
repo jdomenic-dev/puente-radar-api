@@ -10,13 +10,13 @@ Quick reference for clients (mobile app, Bruno, scripts).
 
 Every route requires the header `x-api-key: <ADMIN_API_KEY>` **except**:
 
-| Route                     | Access                                                                            |
-| ------------------------- | --------------------------------------------------------------------------------- |
-| `GET /health`             | Public                                                                            |
-| `POST /reports`           | Public, limited to 5 requests/min per IP                                          |
-| `GET /estimates/overview` | Public (only serves public CBP wait data); global limit of 60 requests/min per IP |
+| Route                     | Access                                                                          |
+| ------------------------- | ------------------------------------------------------------------------------- |
+| `GET /health`             | Public                                                                          |
+| `POST /reports`           | Public, limited to 5 requests/min per IP                                        |
+| `GET /estimates/overview` | Public (only serves public CBP wait data); result cached for 30 s on the server |
 
-Missing or wrong key returns `401`. Global rate limit is 60 requests/min per IP (`429` when exceeded).
+Missing or wrong key returns `401`. Rate limits (`429` when exceeded): 120 requests/min per IP and endpoint (`THROTTLE_LIMIT`), 5 reports/min per IP on `POST /reports`, and Nginx cuts bursts above 10 requests/second per IP before they reach the API (its `429` body is HTML, not JSON). Requests with a wrong key count against the limit too.
 
 > **Never commit the key.** Keep it in a Bruno secret environment variable
 > (`apiKey`), a local `.env`, or your CI secret store. The key lives on the server in
