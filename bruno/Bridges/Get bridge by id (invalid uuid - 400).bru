@@ -1,0 +1,26 @@
+meta {
+  name: Get bridge by id (invalid uuid - 400)
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}/bridges/not-a-uuid
+  body: none
+  auth: none
+}
+
+headers {
+  x-api-key: {{apiKey}}
+}
+
+docs {
+  # GET /bridges/:id con un id inválido
+
+  El `id` debe ser un UUID. Un valor inválido responde **400** de inmediato, sin consultar la
+  base de datos (antes llegaba hasta la consulta).
+}
+
+assert {
+  res.status: eq 400
+}

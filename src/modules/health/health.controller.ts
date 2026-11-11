@@ -1,9 +1,12 @@
 import { Controller, Get } from '@nestjs/common';
-import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiResponse, ApiTags, ApiTooManyRequestsResponse } from '@nestjs/swagger';
 import { HealthCheck, HealthCheckService, TypeOrmHealthIndicator } from '@nestjs/terminus';
 import { Public } from '../../common/decorators/public.decorator.js';
 
 @ApiTags('health')
+@ApiTooManyRequestsResponse({
+  description: 'Rate limit exceeded (default 120 requests per minute per IP and endpoint)',
+})
 @Public()
 @Controller('health')
 export class HealthController {

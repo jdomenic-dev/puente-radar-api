@@ -1,0 +1,28 @@
+meta {
+  name: Recent by bridge (invalid limit - 400)
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{baseUrl}}/reports/bridge/{{bridgeId}}/recent?limit=101
+  body: none
+  auth: none
+}
+
+headers {
+  x-api-key: {{apiKey}}
+}
+
+docs {
+  # GET /reports/bridge/:bridgeId/recent con limit fuera de rango
+
+  `limit` acepta de 1 a 100 (por defecto 10). Un valor fuera de rango, no entero o negativo
+  responde **400**. Antes no tenía máximo y permitía pedir toda la tabla.
+
+  Prueba también `limit=0`, `limit=-1` y `limit=abc`.
+}
+
+assert {
+  res.status: eq 400
+}

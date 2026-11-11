@@ -38,4 +38,32 @@ describe('authorization policy metadata', () => {
       expect(Reflect.getMetadata(IS_PUBLIC_KEY, EstimatesController)).toBeUndefined();
     });
   });
+
+  describe('POST /reports rate limit', () => {
+    const limitOf = (): (() => number) =>
+      Reflect.getMetadata('THROTTLER:LIMITdefault', getReportHandler('create')) as () => number;
+    const original = process.env.THROTTLE_REPORTS_LIMIT;
+
+    afterEach(() => {
+      if (original === undefined) delete process.env.THROTTLE_REPORTS_LIMIT;
+      else process.env.THROTTLE_REPORTS_LIMIT = original;
+    });
+
+    it('defaults to 5 per window when THROTTLE_REPORTS_LIMIT is not set', () => {
+      delete process.env.THROTTLE_REPORTS_LIMIT;
+      expect(limitOf()()).toBe(5);
+    });
+
+    it('honours THROTTLE_REPORTS_LIMIT, so the documented setting is real', () => {
+      process.env.THROTTLE_REPORTS_LIMIT = '9';
+      expect(limitOf()()).toBe(9);
+    });
+
+    it('falls back to 5 when the value is not a positive integer', () => {
+      process.env.THROTTLE_REPORTS_LIMIT = 'abc';
+      expect(limitOf()()).toBe(5);
+      process.env.THROTTLE_REPORTS_LIMIT = '0';
+      expect(limitOf()()).toBe(5);
+    });
+  });
 });

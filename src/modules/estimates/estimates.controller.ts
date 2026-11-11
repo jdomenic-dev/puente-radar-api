@@ -8,12 +8,24 @@
  */
 
 import { Controller, Get, Query } from '@nestjs/common';
-import { ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBadRequestResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiSecurity,
+  ApiTags,
+  ApiTooManyRequestsResponse,
+  ApiUnauthorizedResponse,
+} from '@nestjs/swagger';
 import { EstimatesService } from './estimates.service.js';
 import { EstimatesQueryDto } from './dto/estimates-query.dto.js';
+import { EstimateEntryDto, OverviewResponseDto } from './dto/estimates-response.dto.js';
 import { Public } from '../../common/decorators/public.decorator.js';
 
 @ApiTags('estimates')
+@ApiTooManyRequestsResponse({
+  description: 'Rate limit exceeded (default 120 requests per minute per IP and endpoint)',
+})
 @Controller('estimates')
 export class EstimatesController {
   constructor(private readonly estimatesService: EstimatesService) {}
@@ -27,9 +39,9 @@ export class EstimatesController {
       'laneType defaults to general when omitted. ' +
       'A single CBP fetch cycle (TTL-aware, stale fallback) is made per request.',
   })
-  @ApiOkResponse({
-    description: 'Array of estimate entries; one per active bridge.',
-  })
+  @ApiOkResponse({ type: [EstimateEntryDto], description: 'One estimate entry per active bridge.' })
+  @ApiBadRequestResponse({ description: 'laneType is not one of general, ready_lane, sentri, pedestrian' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid x-api-key header' })
   getEstimates(@Query() query: EstimatesQueryDto) {
     return this.estimatesService.getEstimates(query.laneType);
   }
@@ -45,9 +57,10 @@ export class EstimatesController {
       'per lane: estimated wait, status (low <= 30 min, medium <= 60, high <= 120, saturated above), ' +
       'trend (rising | steady | falling), lanes open, availability and the best-option flag. ' +
       'Lanes are resolved sequentially so a stale CBP cache is refreshed once. ' +
-      'Public (no API key): it only serves public CBP wait data, subject to the global rate limit.',
+      'Public (no API key): it only serves public CBP wait data, subject to the global rate limit. ' +
+      'The result is cached for up to 30 seconds; generatedAt tells when it was computed.',
   })
-  @ApiOkResponse({ description: 'Overview of every active bridge, in catalog order.' })
+  @ApiOkResponse({ type: OverviewResponseDto, description: 'Overview of every active bridge, in catalog order.' })
   getOverview() {
     return this.estimatesService.getOverview();
   }

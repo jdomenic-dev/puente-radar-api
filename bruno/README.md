@@ -42,6 +42,7 @@ bruno/
 │   ├── Bridges summary
 │   ├── Get bridge by slug
 │   ├── Get bridge by id
+│   ├── Get bridge by id (invalid uuid - 400)
 │   └── Update bridge status
 ├── Reports/
 │   ├── Create report
@@ -49,6 +50,7 @@ bruno/
 │   ├── List reports
 │   ├── Home summary
 │   ├── Recent by bridge
+│   ├── Recent by bridge (invalid limit - 400)
 │   └── Rate limit test (429)
 ├── Estimates/
 │   ├── Get estimates (general)
