@@ -10,10 +10,11 @@ Quick reference for clients (mobile app, Bruno, scripts).
 
 Every route requires the header `x-api-key: <ADMIN_API_KEY>` **except**:
 
-| Route           | Access                                   |
-| --------------- | ---------------------------------------- |
-| `GET /health`   | Public                                   |
-| `POST /reports` | Public, limited to 5 requests/min per IP |
+| Route                     | Access                                                                            |
+| ------------------------- | --------------------------------------------------------------------------------- |
+| `GET /health`             | Public                                                                            |
+| `POST /reports`           | Public, limited to 5 requests/min per IP                                          |
+| `GET /estimates/overview` | Public (only serves public CBP wait data); global limit of 60 requests/min per IP |
 
 Missing or wrong key returns `401`. Global rate limit is 60 requests/min per IP (`429` when exceeded).
 
@@ -49,7 +50,7 @@ Seeded bridge slugs: `puente-libre`, `puente-santa-fe`, `puente-zaragoza`,
 | GET    | `/bridges/slug/:slug`                       | api key | `404` if unknown                                                                                                                    |
 | GET    | `/bridges/:id`                              | api key | `id` is a UUID                                                                                                                      |
 | PATCH  | `/bridges/:id/status`                       | api key | Admin: body `{ status?, waitMinutes?(0-300), trend? }`                                                                              |
-| GET    | `/estimates/overview`                       | api key | **Home**: every bridge with all four lanes (pedestrian included) in one call, see below                                             |
+| GET    | `/estimates/overview`                       | none    | **Home**: every bridge with all four lanes (pedestrian included) in one call, see below                                             |
 | GET    | `/estimates?laneType=general`               | api key | Wait estimates for all bridges (CBP + community + admin adjustment), one lane per call. `laneType` defaults to `general`            |
 | GET    | `/historical-patterns`                      | api key | Query `laneType`, `dayOfWeek` (0-6), `time` (`HH:00` or `HH:30`, America/Ciudad_Juarez). `404` unless `HISTORICAL_API_ENABLED=true` |
 | POST   | `/reports`                                  | none    | Anonymous report for now (login with Google/Facebook is planned, see `docs/auth-plan.md`), body below                               |
@@ -92,6 +93,8 @@ checked 2026-11-11); verify them before relying on them for anything critical. `
 already returns `shortName` (falling back to `name`) and a ready-made `schedule.label`.
 
 ## `GET /estimates/overview` (Home)
+
+**Public: no `x-api-key`.** The mobile app uses it so the admin key never ships inside the app.
 
 One call replaces `/bridges/summary` plus four `/estimates` calls. Lanes are resolved one after
 another on purpose, so a stale CBP cache is refreshed only once per request.

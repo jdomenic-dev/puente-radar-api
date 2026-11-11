@@ -11,14 +11,15 @@ import { Controller, Get, Query } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 import { EstimatesService } from './estimates.service.js';
 import { EstimatesQueryDto } from './dto/estimates-query.dto.js';
+import { Public } from '../../common/decorators/public.decorator.js';
 
 @ApiTags('estimates')
-@ApiSecurity('api-key')
 @Controller('estimates')
 export class EstimatesController {
   constructor(private readonly estimatesService: EstimatesService) {}
 
   @Get()
+  @ApiSecurity('api-key')
   @ApiOperation({
     summary: 'Get lane-specific wait estimates for all active bridges',
     description:
@@ -35,6 +36,7 @@ export class EstimatesController {
 
   // Declared after the bare @Get(): Nest matches static paths regardless of order here
   // because "estimates" has no :param route, but keeping it below avoids surprises later.
+  @Public()
   @Get('overview')
   @ApiOperation({
     summary: 'Home overview: every bridge with all lanes (general, ready_lane, sentri, pedestrian)',
@@ -42,7 +44,8 @@ export class EstimatesController {
       'One call for the Home screen. Per bridge: names, schedule, open state, recent report count and, ' +
       'per lane: estimated wait, status (low <= 30 min, medium <= 60, high <= 120, saturated above), ' +
       'trend (rising | steady | falling), lanes open, availability and the best-option flag. ' +
-      'Lanes are resolved sequentially so a stale CBP cache is refreshed once.',
+      'Lanes are resolved sequentially so a stale CBP cache is refreshed once. ' +
+      'Public (no API key): it only serves public CBP wait data, subject to the global rate limit.',
   })
   @ApiOkResponse({ description: 'Overview of every active bridge, in catalog order.' })
   getOverview() {

@@ -10,12 +10,10 @@ get {
   auth: none
 }
 
-headers {
-  x-api-key: {{apiKey}}
-}
-
 docs {
   # GET /estimates/overview
+
+  **Público: no requiere `x-api-key`** (la app no lleva la clave de administrador).
 
   Vista del Home: todos los puentes con los cuatro carriles (general, ready_lane,
   sentri y pedestrian) en una sola llamada.
