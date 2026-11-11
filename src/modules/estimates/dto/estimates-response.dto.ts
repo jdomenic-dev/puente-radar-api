@@ -85,6 +85,10 @@ export class BridgeOverviewDto {
   @ApiProperty() sortOrder!: number;
   @ApiProperty({ description: 'False only when every lane is closed' }) isOpen!: boolean;
   @ApiProperty({ type: ScheduleDto }) schedule!: ScheduleDto;
+  @ApiProperty({ nullable: true, type: Number, example: 31.76521, description: 'Crossing latitude (WGS84)' })
+  latitude!: number | null;
+  @ApiProperty({ nullable: true, type: Number, example: -106.45159, description: 'Crossing longitude (WGS84)' })
+  longitude!: number | null;
   @ApiProperty({ nullable: true, type: String, format: 'date-time' }) lastUpdatedAt!: string | null;
   @ApiProperty({ description: 'Reports received in the last 60 minutes' }) recentReportCount!: number;
   @ApiProperty({ type: LanesOverviewDto }) lanes!: LanesOverviewDto;
