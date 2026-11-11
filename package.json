@@ -93,5 +93,14 @@
     ],
     "coverageDirectory": "../coverage",
     "testEnvironment": "node"
+  },
+  "pnpm": {
+    "overrides": {
+      "body-parser": ">=2.4.0 <3",
+      "qs": ">=6.16.1 <7",
+      "proxy-addr": ">=2.0.8 <3",
+      "multer": ">=2.5.0 <3",
+      "js-yaml@^4": ">=4.3.2 <5"
+    }
   }
 }
