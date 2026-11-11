@@ -98,12 +98,12 @@ class EnvironmentVariables {
 
   /**
    * Max requests per window (global throttle).
-   * Default: 60 requests per minute.
+   * Default: 120 requests per minute per IP.
    */
   @IsInt()
   @Min(1)
   @IsOptional()
-  THROTTLE_LIMIT: number = 60;
+  THROTTLE_LIMIT: number = 120;
 
   /**
    * Throttle window in milliseconds.

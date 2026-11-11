@@ -38,6 +38,9 @@ function deserializeLane(raw: string): NormalizedLane {
 }
 
 export class CbpRedisCache {
+  /** Log a Redis read failure once per outage, not once per request. */
+  private readFailureLogged = false;
+
   constructor(
     private readonly adapter: CbpAdapter,
     private readonly redis: Redis | null,
@@ -62,7 +65,18 @@ export class CbpRedisCache {
     const allLaneTypes = [LaneType.General, LaneType.ReadyLane, LaneType.Sentri, LaneType.Pedestrian];
     const keys = portNumbers.flatMap((p) => allLaneTypes.map((lt) => redisKey(p, lt)));
 
-    const cached = await this.redis.mget(...keys);
+    let cached: Array<string | null>;
+    try {
+      cached = await this.redis.mget(...keys);
+      this.readFailureLogged = false;
+    } catch (err) {
+      // Redis is down or slow: serve from PostgreSQL/CBP instead of failing the request.
+      if (!this.readFailureLogged) {
+        this.readFailureLogged = true;
+        console.warn('[CbpRedisCache] read failed, falling back to PostgreSQL:', (err as Error).message);
+      }
+      return this.adapter.getLanes(portToBridgeMap, now);
+    }
     const cachedLanes: NormalizedLane[] = [];
 
     for (const raw of cached) {

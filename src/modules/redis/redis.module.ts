@@ -14,7 +14,9 @@
 
 import { Global, Module, Provider } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Logger } from '@nestjs/common';
 import Redis from 'ioredis';
+import { createRedisStatusLogger } from './redis-status-logger.js';
 
 export const REDIS_CLIENT = 'REDIS_CLIENT';
 
@@ -26,19 +28,19 @@ const redisProvider: Provider = {
     if (!url) return null;
 
     const client = new Redis(url, {
-      maxRetriesPerRequest: 3,
+      maxRetriesPerRequest: 1,
       enableReadyCheck: true,
       lazyConnect: false,
+      // Fail immediately while disconnected instead of queueing commands: callers fall back to
+      // memory/PostgreSQL, so a Redis outage never adds latency to requests.
+      enableOfflineQueue: false,
+      connectTimeout: 2000,
     });
 
-    client.on('error', (err: Error) => {
-      // Log but don't crash — app degrades gracefully without Redis
-      console.error('[Redis] connection error:', err.message);
-    });
+    const status = createRedisStatusLogger(new Logger('Redis'));
 
-    client.on('connect', () => {
-      console.log('[Redis] connected');
-    });
+    client.on('error', (err: Error) => status.onError(err));
+    client.on('ready', () => status.onReady());
 
     return client;
   },
