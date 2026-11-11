@@ -76,6 +76,13 @@ export class BridgesService {
       if (dto.cbpPortNumber !== undefined) {
         existing.cbpPortNumber = dto.cbpPortNumber;
       }
+      // Catalog data is static reference data: the seed may fill or correct it, but an
+      // omitted field never erases what is stored (and operational status is never reset).
+      if (dto.shortName !== undefined) existing.shortName = dto.shortName;
+      if (dto.latitude !== undefined) existing.latitude = dto.latitude;
+      if (dto.longitude !== undefined) existing.longitude = dto.longitude;
+      if (dto.opensAt !== undefined) existing.opensAt = dto.opensAt;
+      if (dto.closesAt !== undefined) existing.closesAt = dto.closesAt;
       return this.bridgeRepository.save(existing);
     }
     const bridge = this.bridgeRepository.create(dto);

@@ -45,6 +45,11 @@ function makeBridge(id: string, name: string, cbpPortNumber: number | null): Bri
     cbpPortNumber,
     sortOrder: 1,
     lastUpdatedAt: null,
+    shortName: null,
+    latitude: null,
+    longitude: null,
+    opensAt: null,
+    closesAt: null,
     reports: [],
   };
 }

@@ -30,6 +30,11 @@ const BRIDGE_1: Bridge = {
   cbpPortNumber: 240201,
   sortOrder: 0,
   lastUpdatedAt: null,
+  shortName: null,
+  latitude: null,
+  longitude: null,
+  opensAt: null,
+  closesAt: null,
   reports: [],
 };
 const makeBridge = (id: string, cbpPortNumber: number): Bridge => ({ ...BRIDGE_1, id, slug: id, cbpPortNumber });

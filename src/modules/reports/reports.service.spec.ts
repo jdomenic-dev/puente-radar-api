@@ -34,6 +34,11 @@ function makeBridge(overrides: Partial<Bridge> = {}): Bridge {
     sortOrder: 1,
     lastUpdatedAt: null,
     cbpPortNumber: null,
+    shortName: null,
+    latitude: null,
+    longitude: null,
+    opensAt: null,
+    closesAt: null,
     reports: [],
     ...overrides,
   };

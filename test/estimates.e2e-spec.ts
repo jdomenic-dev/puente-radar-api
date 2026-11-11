@@ -44,6 +44,11 @@ const FAKE_BRIDGE_A: Bridge = {
   cbpPortNumber: 240201,
   sortOrder: 1,
   lastUpdatedAt: null,
+  shortName: null,
+  latitude: null,
+  longitude: null,
+  opensAt: null,
+  closesAt: null,
   reports: [],
 };
 
@@ -57,6 +62,11 @@ const FAKE_BRIDGE_B: Bridge = {
   cbpPortNumber: 240202,
   sortOrder: 2,
   lastUpdatedAt: null,
+  shortName: null,
+  latitude: null,
+  longitude: null,
+  opensAt: null,
+  closesAt: null,
   reports: [],
 };
 

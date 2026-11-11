@@ -27,6 +27,11 @@ function makeBridge(overrides: Partial<Bridge> = {}): Bridge {
     sortOrder: 1,
     lastUpdatedAt: null,
     cbpPortNumber: null,
+    shortName: null,
+    latitude: null,
+    longitude: null,
+    opensAt: null,
+    closesAt: null,
     reports: [],
     ...overrides,
   };
@@ -207,6 +212,65 @@ describe('BridgesService', () => {
       // cbpPortNumber IS updated; status is NOT reset
       expect(result.cbpPortNumber).toBe(240201);
       expect(result.status).toBe(BridgeStatus.High);
+    });
+  });
+
+  describe('upsertBySlug() — catalog fields', () => {
+    const catalog = {
+      shortName: 'Santa Teresa',
+      latitude: 31.78287,
+      longitude: -106.67976,
+      opensAt: '06:00',
+      closesAt: '22:00',
+    };
+
+    it('creates a bridge with its catalog fields', async () => {
+      repo.findOne!.mockResolvedValue(null);
+      repo.create!.mockImplementation((dto: Partial<Bridge>) => makeBridge(dto));
+      repo.save!.mockImplementation((entity: Bridge) => Promise.resolve(entity));
+
+      const result = await service.upsertBySlug({
+        name: 'Puente Santa Teresa',
+        slug: 'puente-santa-teresa',
+        ...catalog,
+      });
+
+      expect(result).toMatchObject(catalog);
+    });
+
+    it('fills the catalog of an existing bridge (seed re-run after the migration)', async () => {
+      const existing = makeBridge({ slug: 'puente-santa-teresa' });
+      repo.findOne!.mockResolvedValue(existing);
+      repo.save!.mockImplementation((entity: Bridge) => Promise.resolve({ ...entity }));
+
+      const result = await service.upsertBySlug({
+        name: 'Puente Santa Teresa',
+        slug: 'puente-santa-teresa',
+        ...catalog,
+      });
+
+      expect(result).toMatchObject(catalog);
+    });
+
+    it('does not erase catalog values the dto omits', async () => {
+      const existing = makeBridge({ slug: 'puente-santa-teresa', ...catalog });
+      repo.findOne!.mockResolvedValue(existing);
+      repo.save!.mockImplementation((entity: Bridge) => Promise.resolve({ ...entity }));
+
+      const result = await service.upsertBySlug({ name: 'Puente Santa Teresa', slug: 'puente-santa-teresa' });
+
+      expect(result).toMatchObject(catalog);
+    });
+
+    it('keeps a bridge open 24 hours when the dto sets both times to null explicitly omitted', async () => {
+      const existing = makeBridge({ slug: 'puente-libre', opensAt: null, closesAt: null });
+      repo.findOne!.mockResolvedValue(existing);
+      repo.save!.mockImplementation((entity: Bridge) => Promise.resolve({ ...entity }));
+
+      const result = await service.upsertBySlug({ name: 'Puente Libre', slug: 'puente-libre' });
+
+      expect(result.opensAt).toBeNull();
+      expect(result.closesAt).toBeNull();
     });
   });
 
