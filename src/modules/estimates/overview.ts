@@ -52,6 +52,9 @@ export interface BridgeOverview {
   /** False only when every lane is closed. */
   isOpen: boolean;
   schedule: ScheduleDescription;
+  /** Crossing coordinates (OpenStreetMap), for directions; null when the catalog has none. */
+  latitude: number | null;
+  longitude: number | null;
   lastUpdatedAt: string | null;
   /** Community reports in the last hour, all lanes. */
   recentReportCount: number;
@@ -138,6 +141,8 @@ export function buildBridgeOverview(
     sortOrder: bridge.sortOrder,
     isOpen: OVERVIEW_LANES.some((lane) => lanes[lane].unavailableReason !== 'laneClosed'),
     schedule: describeSchedule(bridge.opensAt, bridge.closesAt),
+    latitude: bridge.latitude,
+    longitude: bridge.longitude,
     lastUpdatedAt: bridge.lastUpdatedAt?.toISOString() ?? null,
     recentReportCount,
     lanes,

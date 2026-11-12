@@ -113,6 +113,8 @@ another on purpose, so a stale CBP cache is refreshed only once per request.
       "sortOrder": 6,
       "isOpen": true,
       "schedule": { "is24h": false, "label": "6:00 – 22:00" },
+      "latitude": 31.78287,
+      "longitude": -106.67976,
       "lastUpdatedAt": "2026-11-11T16:00:00.000Z",
       "recentReportCount": 12,
       "lanes": {

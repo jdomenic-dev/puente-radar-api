@@ -183,6 +183,20 @@ describe('buildBridgeOverview', () => {
     });
   });
 
+  it('includes the crossing coordinates so the app can draw the route without the admin key', () => {
+    const result = buildBridgeOverview(bridge(), allLanes(entry()), 0);
+
+    expect(result.latitude).toBe(31.78287);
+    expect(result.longitude).toBe(-106.67976);
+  });
+
+  it('sends null coordinates when the catalog has none', () => {
+    const result = buildBridgeOverview(bridge({ latitude: null, longitude: null }), allLanes(entry()), 0);
+
+    expect(result.latitude).toBeNull();
+    expect(result.longitude).toBeNull();
+  });
+
   it('falls back to the full name when there is no short name', () => {
     expect(buildBridgeOverview(bridge({ shortName: null }), allLanes(entry()), 0).shortName).toBe(
       'Puente Santa Teresa',
