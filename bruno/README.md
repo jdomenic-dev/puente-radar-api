@@ -58,6 +58,7 @@ bruno/
 │   ├── Get estimates (sentri)
 │   ├── Get estimates (pedestrian)
 │   ├── Get overview (home)        # todos los puentes y carriles en una llamada
+│   ├── Get insights (history)     # lo normal y mejores momentos (null sin historial)
 │   └── Get estimates (invalid lane - 400)
 └── Historical patterns/
     ├── Get historical patterns

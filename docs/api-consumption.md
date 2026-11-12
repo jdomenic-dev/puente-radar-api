@@ -51,6 +51,7 @@ Seeded bridge slugs: `puente-libre`, `puente-santa-fe`, `puente-zaragoza`,
 | GET    | `/bridges/:id`                              | api key | `id` is a UUID                                                                                                                      |
 | PATCH  | `/bridges/:id/status`                       | api key | Admin: body `{ status?, waitMinutes?(0-300), trend? }`                                                                              |
 | GET    | `/estimates/overview`                       | none    | **Home**: every bridge with all four lanes (pedestrian included) in one call, see below                                             |
+| GET    | `/estimates/insights`                       | none    | **Detail**: usual wait now and best times of the day per bridge and lane, from collected history; `null` until there is enough evidence |
 | GET    | `/estimates?laneType=general`               | api key | Wait estimates for all bridges (CBP + community + admin adjustment), one lane per call. `laneType` defaults to `general`            |
 | GET    | `/historical-patterns`                      | api key | Query `laneType`, `dayOfWeek` (0-6), `time` (`HH:00` or `HH:30`, America/Ciudad_Juarez). `404` unless `HISTORICAL_API_ENABLED=true` |
 | POST   | `/reports`                                  | none    | Anonymous report for now (login with Google/Facebook is planned, see `docs/auth-plan.md`), body below                               |
@@ -124,7 +125,11 @@ another on purpose, so a stale CBP cache is refreshed only once per request.
           "unavailableReason": null,
           "confidence": "high",
           "isBestOption": true,
-          "sourceStale": false
+          "sourceStale": false,
+          "cbpMinutes": 14,
+          "communityMinutes": 9,
+          "reportCount": 3,
+          "previousMinutes": 20
         },
         "ready_lane": { "...": "same shape" },
         "sentri": { "...": "same shape" },
@@ -137,7 +142,11 @@ another on purpose, so a stale CBP cache is refreshed only once per request.
           "unavailableReason": "laneClosed",
           "confidence": "low",
           "isBestOption": false,
-          "sourceStale": false
+          "sourceStale": false,
+          "cbpMinutes": null,
+          "communityMinutes": null,
+          "reportCount": 0,
+          "previousMinutes": null
         }
       }
     }
@@ -149,9 +158,54 @@ another on purpose, so a stale CBP cache is refreshed only once per request.
 - `isOpen` is `false` only when every lane is closed.
 - A lane without an estimate has `available: false`, `unavailableReason` (`laneClosed` or `noData`)
   and `null` for the wait, status and trend.
+- Per lane, the figures behind the estimate: `cbpMinutes` (official CBP wait, before blending),
+  `communityMinutes` with `reportCount` (community estimate and the reports that back it) and
+  `previousMinutes` (official wait about 30 minutes ago). Each is `null` when unknown (closed lane,
+  nobody reported, no snapshot near that time), and `reportCount` is `0` then. `null` never means
+  zero minutes: hide the figure instead of showing 0.
 - `lanesOpen` is what CBP reports. **There is no `lanesTotal`**: CBP publishes the maximum
   number of lanes per port (vehicles) or per pedestrian area, not per vehicle lane type, so
   "4 of 6" cannot be derived for general/ready/SENTRI. Show "N lanes open".
+
+## `GET /estimates/insights` (bridge detail)
+
+Public, cached 5 minutes. History comes from the CBP collector (every 15 minutes, 30-minute bins
+per weekday, America/Ciudad_Juarez):
+
+```json
+{
+  "generatedAt": "2026-11-11T17:05:00.000Z",
+  "timezone": "America/Ciudad_Juarez",
+  "dayOfWeek": 3,
+  "time": "10:00",
+  "historyEnabled": true,
+  "bridges": [
+    {
+      "bridgeId": "uuid",
+      "lanes": {
+        "general": {
+          "usual": { "medianMinutes": 18, "comparableDates": 8 },
+          "bestTimes": {
+            "freest": { "startHour": 10, "endHour": 13, "typicalMinutes": 14 },
+            "peak": { "startHour": 17, "endHour": 20, "typicalMinutes": 52 }
+          }
+        },
+        "ready_lane": { "usual": null, "bestTimes": null },
+        "sentri": { "usual": null, "bestTimes": null },
+        "pedestrian": { "usual": null, "bestTimes": null }
+      }
+    }
+  ]
+}
+```
+
+- `usual` is the median wait for the current half hour on this weekday. `bestTimes` are the
+  freest and busiest three-hour windows of the day.
+- **Both are `null` until there are at least 6 comparable dates with 70% coverage** for that bridge
+  and lane (about six weeks of collection), and `bestTimes` is also `null` when the day is flat
+  (best and worst windows less than 5 minutes apart). Clients must hide the sections when `null`.
+- `historyEnabled: false` means the server has the history API switched off; every figure is `null`.
+- "Usual compared with now" is computed by the client: `estimatedWaitMinutes - usual.medianMinutes`.
 
 ## Vocabulary the app must follow
 

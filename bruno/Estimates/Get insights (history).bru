@@ -1,0 +1,34 @@
+meta {
+  name: Get insights (history)
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{baseUrl}}/estimates/insights
+  body: none
+  auth: none
+}
+
+docs {
+  # GET /estimates/insights
+
+  **Público: no requiere `x-api-key`.** Para el detalle del puente: lo "normal" a esta hora y
+  los mejores momentos del día, por puente y carril.
+
+  - `usual`: mediana de espera de esta media hora en este día de la semana.
+  - `bestTimes`: ventanas de 3 horas más libre y más cargada del día.
+  - **Ambos son `null` hasta tener al menos 6 fechas comparables con 70% de cobertura** (unas seis
+    semanas de recolección). El cliente debe ocultar la sección cuando sea `null`.
+  - `historyEnabled: false` si el servidor tiene apagada la API histórica.
+
+  Se cachea 5 minutos en el servidor.
+}
+
+assert {
+  res.status: eq 200
+  res.body.timezone: isString
+  res.body.historyEnabled: isBoolean
+  res.body.bridges: isArray
+  res.body.bridges[0].lanes.general: isDefined
+}
