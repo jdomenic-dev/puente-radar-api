@@ -179,7 +179,7 @@ describe('buildBridgeOverview', () => {
       sortOrder: 6,
       schedule: { is24h: false, label: '6:00 – 22:00' },
       recentReportCount: 12,
-      lastUpdatedAt: '2026-11-11T15:59:00.000Z',
+      lastUpdatedAt: '2026-11-11T16:00:00.000Z', // the lane fetch, not the row edit (15:59)
     });
   });
 
@@ -222,7 +222,28 @@ describe('buildBridgeOverview', () => {
     expect(buildBridgeOverview(bridge(), lanes, 0).isOpen).toBe(false);
   });
 
-  it('has a null lastUpdatedAt when the bridge was never updated', () => {
-    expect(buildBridgeOverview(bridge({ lastUpdatedAt: null }), allLanes(entry()), 0).lastUpdatedAt).toBeNull();
+  it('reports when the wait data was last fetched from CBP, not when the bridge row was edited', () => {
+    const lanes = allLanes(entry({ fetchedAt: '2026-11-12T16:30:00.415Z' }));
+    lanes.sentri = entry({ fetchedAt: '2026-11-12T16:45:00.000Z' });
+
+    const result = buildBridgeOverview(bridge({ lastUpdatedAt: new Date('2026-11-09T18:05:58.193Z') }), lanes, 0);
+
+    expect(result.lastUpdatedAt).toBe('2026-11-12T16:45:00.000Z'); // the newest lane fetch
+  });
+
+  it('falls back to the bridge row date only when no lane has a CBP fetch time', () => {
+    const result = buildBridgeOverview(
+      bridge({ lastUpdatedAt: new Date('2026-11-09T18:05:58.193Z') }),
+      allLanes(entry({ fetchedAt: null })),
+      0,
+    );
+
+    expect(result.lastUpdatedAt).toBe('2026-11-09T18:05:58.193Z');
+  });
+
+  it('has a null lastUpdatedAt when the bridge was never updated and nothing was fetched', () => {
+    expect(
+      buildBridgeOverview(bridge({ lastUpdatedAt: null }), allLanes(entry({ fetchedAt: null })), 0).lastUpdatedAt,
+    ).toBeNull();
   });
 });

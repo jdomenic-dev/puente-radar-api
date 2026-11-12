@@ -52,10 +52,11 @@ export interface BridgeOverview {
   /** False only when every lane is closed. */
   isOpen: boolean;
   schedule: ScheduleDescription;
+  /** When the wait data was last fetched from CBP (newest lane); the bridge row date only when nothing was fetched. */
+  lastUpdatedAt: string | null;
   /** Crossing coordinates (OpenStreetMap), for directions; null when the catalog has none. */
   latitude: number | null;
   longitude: number | null;
-  lastUpdatedAt: string | null;
   /** Community reports in the last hour, all lanes. */
   recentReportCount: number;
   lanes: Record<LaneType, LaneOverview>;
@@ -123,6 +124,15 @@ export function buildLaneOverview(entry: EstimateResponseEntry | undefined): Lan
   };
 }
 
+/** ISO time of the most recent CBP fetch among the lanes, or null when none has one. */
+function newestFetch(entriesByLane: Partial<Record<LaneType, EstimateResponseEntry>>): string | null {
+  const times = Object.values(entriesByLane)
+    .map((entry) => entry?.fetchedAt ?? null)
+    .filter((time): time is string => time !== null);
+  if (times.length === 0) return null;
+  return times.reduce((newest, time) => (time > newest ? time : newest));
+}
+
 export function buildBridgeOverview(
   bridge: Bridge,
   entriesByLane: Partial<Record<LaneType, EstimateResponseEntry>>,
@@ -143,7 +153,7 @@ export function buildBridgeOverview(
     schedule: describeSchedule(bridge.opensAt, bridge.closesAt),
     latitude: bridge.latitude,
     longitude: bridge.longitude,
-    lastUpdatedAt: bridge.lastUpdatedAt?.toISOString() ?? null,
+    lastUpdatedAt: newestFetch(entriesByLane) ?? bridge.lastUpdatedAt?.toISOString() ?? null,
     recentReportCount,
     lanes,
   };
