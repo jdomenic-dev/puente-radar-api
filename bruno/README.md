@@ -60,6 +60,10 @@ bruno/
 │   ├── Get overview (home)        # todos los puentes y carriles en una llamada
 │   ├── Get insights (history)     # lo normal y mejores momentos (null sin historial)
 │   └── Get estimates (invalid lane - 400)
+├── Cameras/
+│   ├── List cameras               # En vivo: cámaras de YouTube por puente (público)
+│   ├── Create camera              # admin
+│   └── Update camera              # admin: cambiar id, ocultar, renombrar
 └── Historical patterns/
     ├── Get historical patterns
     └── Get historical patterns (invalid query - 400)

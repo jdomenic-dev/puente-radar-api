@@ -1,0 +1,38 @@
+meta {
+  name: Update camera
+  type: http
+  seq: 3
+}
+
+patch {
+  url: {{baseUrl}}/cameras/{{cameraId}}
+  body: json
+  auth: none
+}
+
+headers {
+  x-api-key: {{apiKey}}
+}
+
+body:json {
+  {
+    "label": "Norte"
+  }
+}
+
+docs {
+  # PATCH /cameras/:id (administrador)
+
+  Cambia solo los campos que envíes. Usos habituales:
+
+  - **Reemplazar el id cuando el Fideicomiso reinicia una transmisión:** `{ "videoId": "<enlace o id nuevo>" }`.
+  - **Ocultar una cámara sin borrarla:** `{ "isActive": false }`.
+  - **Marcarla a mano:** `{ "status": "offline" }` (hasta que exista la revisión automática).
+  - Renombrar (`label`, `description`) o reordenar (`sortOrder`).
+
+  `{{cameraId}}` se llena solo al correr **List cameras**. `409` si el nuevo video ya pertenece a otra cámara.
+}
+
+assert {
+  res.status: eq 200
+}

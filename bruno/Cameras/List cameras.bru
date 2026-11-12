@@ -1,0 +1,43 @@
+meta {
+  name: List cameras
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/cameras
+  body: none
+  auth: none
+}
+
+script:post-response {
+  // Guarda el id de la primera cámara para los requests "Update camera".
+  if (res.body.bridges && res.body.bridges[0]) {
+    bru.setEnvVar("cameraId", res.body.bridges[0].cameras[0].id);
+  }
+}
+
+docs {
+  # GET /cameras
+
+  **Público: no requiere `x-api-key`.** Las cámaras en vivo de YouTube agrupadas por puente, para la
+  pantalla "En vivo" de la app. Se cachea 60 segundos en el servidor.
+
+  - `tabLabel`: nombre muy corto para las pestañas ("Libre", "Zaragoza").
+  - `cameras[].videoId`: id del video de YouTube. La app arma la dirección del reproductor; nunca se
+    extrae el stream.
+  - `cameras[].status`: `live`, `offline` o `unknown` (la última revisión no pudo saber). La app oculta
+    solo las `offline`.
+  - `cameras[].source`: dueño de la transmisión, para mostrar el crédito con enlace a su canal.
+  - Las esperas **no** vienen aquí: únelas por `bridgeId` con `/estimates/overview`.
+  - Los puentes sin cámaras activas no aparecen.
+}
+
+assert {
+  res.status: eq 200
+  res.body.generatedAt: isString
+  res.body.bridges: isArray
+  res.body.bridges[0].tabLabel: isString
+  res.body.bridges[0].cameras[0].videoId: isString
+  res.body.bridges[0].cameras[0].source.name: isString
+}

@@ -42,22 +42,25 @@ Seeded bridge slugs: `puente-libre`, `puente-santa-fe`, `puente-zaragoza`,
 
 ## Endpoints
 
-| Method | Path                                        | Auth    | Notes                                                                                                                               |
-| ------ | ------------------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| GET    | `/health`                                   | none    | API and database status                                                                                                             |
-| GET    | `/bridges`                                  | api key | All bridges ordered by `sortOrder`                                                                                                  |
-| GET    | `/bridges/summary`                          | api key | Bridges with report count of the last 60 min                                                                                        |
-| GET    | `/bridges/slug/:slug`                       | api key | `404` if unknown                                                                                                                    |
-| GET    | `/bridges/:id`                              | api key | `id` is a UUID                                                                                                                      |
-| PATCH  | `/bridges/:id/status`                       | api key | Admin: body `{ status?, waitMinutes?(0-300), trend? }`                                                                              |
-| GET    | `/estimates/overview`                       | none    | **Home**: every bridge with all four lanes (pedestrian included) in one call, see below                                             |
+| Method | Path                                        | Auth    | Notes                                                                                                                                   |
+| ------ | ------------------------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/health`                                   | none    | API and database status                                                                                                                 |
+| GET    | `/bridges`                                  | api key | All bridges ordered by `sortOrder`                                                                                                      |
+| GET    | `/bridges/summary`                          | api key | Bridges with report count of the last 60 min                                                                                            |
+| GET    | `/bridges/slug/:slug`                       | api key | `404` if unknown                                                                                                                        |
+| GET    | `/bridges/:id`                              | api key | `id` is a UUID                                                                                                                          |
+| PATCH  | `/bridges/:id/status`                       | api key | Admin: body `{ status?, waitMinutes?(0-300), trend? }`                                                                                  |
+| GET    | `/estimates/overview`                       | none    | **Home**: every bridge with all four lanes (pedestrian included) in one call, see below                                                 |
 | GET    | `/estimates/insights`                       | none    | **Detail**: usual wait now and best times of the day per bridge and lane, from collected history; `null` until there is enough evidence |
-| GET    | `/estimates?laneType=general`               | api key | Wait estimates for all bridges (CBP + community + admin adjustment), one lane per call. `laneType` defaults to `general`            |
-| GET    | `/historical-patterns`                      | api key | Query `laneType`, `dayOfWeek` (0-6), `time` (`HH:00` or `HH:30`, America/Ciudad_Juarez). `404` unless `HISTORICAL_API_ENABLED=true` |
-| POST   | `/reports`                                  | none    | Anonymous report for now (login with Google/Facebook is planned, see `docs/auth-plan.md`), body below                               |
-| GET    | `/reports?bridgeId=<uuid>&limit=20`         | api key | `limit` 1-100                                                                                                                       |
-| GET    | `/reports/summary/home`                     | api key | Same shape as `/bridges/summary`                                                                                                    |
-| GET    | `/reports/bridge/:bridgeId/recent?limit=10` | api key | `404` if the bridge does not exist                                                                                                  |
+| GET    | `/cameras`                                  | none    | **En vivo**: YouTube live cameras grouped by bridge (video id, view name, status, credit); cached 60 s. Waits are not included          |
+| POST   | `/cameras`                                  | api key | Admin: register a camera (bridgeId or bridgeSlug, plus a YouTube link or id)                                                            |
+| PATCH  | `/cameras/:id`                              | api key | Admin: replace the video id, rename, reorder, hide (`isActive`) or set `status`                                                         |
+| GET    | `/estimates?laneType=general`               | api key | Wait estimates for all bridges (CBP + community + admin adjustment), one lane per call. `laneType` defaults to `general`                |
+| GET    | `/historical-patterns`                      | api key | Query `laneType`, `dayOfWeek` (0-6), `time` (`HH:00` or `HH:30`, America/Ciudad_Juarez). `404` unless `HISTORICAL_API_ENABLED=true`     |
+| POST   | `/reports`                                  | none    | Anonymous report for now (login with Google/Facebook is planned, see `docs/auth-plan.md`), body below                                   |
+| GET    | `/reports?bridgeId=<uuid>&limit=20`         | api key | `limit` 1-100                                                                                                                           |
+| GET    | `/reports/summary/home`                     | api key | Same shape as `/bridges/summary`                                                                                                        |
+| GET    | `/reports/bridge/:bridgeId/recent?limit=10` | api key | `404` if the bridge does not exist                                                                                                      |
 
 ### `POST /reports` body
 
@@ -208,6 +211,47 @@ per weekday, America/Ciudad_Juarez):
   (best and worst windows less than 5 minutes apart). Clients must hide the sections when `null`.
 - `historyEnabled: false` means the server has the history API switched off; every figure is `null`.
 - "Usual compared with now" is computed by the client: `estimatedWaitMinutes - usual.medianMinutes`.
+
+## `GET /cameras` ("En vivo" screen)
+
+Public, cached 60 seconds. The streams are published on YouTube by the Fideicomiso de Puentes
+Fronterizos de Chihuahua (@fpfch); the API only stores the video id and the credit.
+
+```json
+{
+  "generatedAt": "2026-11-12T20:00:00.000Z",
+  "bridges": [
+    {
+      "bridgeId": "uuid",
+      "slug": "puente-libre",
+      "name": "Puente Libre / Córdova-Américas",
+      "tabLabel": "Libre",
+      "cameras": [
+        {
+          "id": "uuid",
+          "videoId": "mp3RS0y77tY",
+          "label": "Norte",
+          "description": "Mirando hacia EE. UU.",
+          "status": "live",
+          "source": {
+            "name": "Fideicomiso de Puentes Fronterizos de Chihuahua",
+            "url": "https://www.youtube.com/@fpfch"
+          }
+        }
+      ]
+    }
+  ]
+}
+```
+
+- Join waits by `bridgeId` with `/estimates/overview`; they are not repeated here. Bridges without
+  active cameras are omitted, so the list of tabs comes from this response.
+- `status`: hide a camera only when it is `offline`; `unknown` means the last check could not tell.
+- Build the YouTube embed address in the client and identify the app as the `Referer`; never extract
+  or download the stream. Show `source.name` as credit linked to `source.url`, and keep YouTube's own
+  attribution visible and unobstructed. Only one player may start automatically at a time.
+- Stream ids can change when the owner restarts an encoder: fix them with `PATCH /cameras/:id`
+  (`{ "videoId": "<link or id>" }`), no app release needed. Links with tracking parameters are accepted.
 
 ## Vocabulary the app must follow
 

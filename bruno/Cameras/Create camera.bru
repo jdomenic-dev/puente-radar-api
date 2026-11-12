@@ -1,0 +1,42 @@
+meta {
+  name: Create camera
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/cameras
+  body: json
+  auth: none
+}
+
+headers {
+  x-api-key: {{apiKey}}
+}
+
+body:json {
+  {
+    "bridgeSlug": "puente-santa-fe",
+    "videoId": "https://www.youtube.com/watch?v=AAAAAAAAAAA&source_ve_path=MjM4NTE",
+    "label": "Prueba",
+    "description": "Cámara de prueba"
+  }
+}
+
+docs {
+  # POST /cameras (administrador)
+
+  Registra una cámara. Manda el puente como `bridgeSlug` **o** `bridgeId` (uno solo) y un enlace de
+  YouTube o el id de 11 caracteres. Se aceptan enlaces con parámetros de seguimiento
+  (`watch?v=`, `youtu.be/`, `/embed/`, `/live/`); solo se guarda el id.
+
+  - `400` si el enlace no es de YouTube, si faltan o sobran `bridgeId`/`bridgeSlug`.
+  - `404` si el puente no existe.
+  - `409` si ese video ya está registrado.
+
+  Cambia `AAAAAAAAAAA` por un id real antes de correrlo; el de ejemplo crea una cámara falsa.
+}
+
+assert {
+  res.status: eq 201
+}

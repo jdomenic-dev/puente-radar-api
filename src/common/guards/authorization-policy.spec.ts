@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator.js';
 import { HealthController } from '../../modules/health/health.controller.js';
 import { ReportsController } from '../../modules/reports/reports.controller.js';
+import { CamerasController } from '../../modules/cameras/cameras.controller.js';
 import { EstimatesController } from '../../modules/estimates/estimates.controller.js';
 
 function getReportHandler(handlerName: keyof ReportsController): object {
@@ -69,5 +70,22 @@ describe('authorization policy metadata', () => {
       process.env.THROTTLE_REPORTS_LIMIT = '0';
       expect(limitOf()()).toBe(5);
     });
+  });
+
+  describe('cameras', () => {
+    const handler = (name: keyof CamerasController): object =>
+      Object.getOwnPropertyDescriptor(CamerasController.prototype, name)?.value as object;
+
+    it('makes the camera list public: the app reads it without the admin key', () => {
+      expect(Reflect.getMetadata(IS_PUBLIC_KEY, handler('getCameras'))).toBe(true);
+    });
+
+    it.each(['create', 'update'] as const)(
+      'keeps CamerasController.%s protected: only the admin changes cameras',
+      (name) => {
+        expect(Reflect.getMetadata(IS_PUBLIC_KEY, handler(name))).toBeUndefined();
+        expect(Reflect.getMetadata(IS_PUBLIC_KEY, CamerasController)).toBeUndefined();
+      },
+    );
   });
 });

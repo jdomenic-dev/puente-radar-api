@@ -8,6 +8,7 @@ import { INestApplication } from '@nestjs/common';
 import { DocumentBuilder, OpenAPIObject, SwaggerModule } from '@nestjs/swagger';
 import { Test } from '@nestjs/testing';
 import { BridgesController } from '../../modules/bridges/bridges.controller.js';
+import { CamerasController } from '../../modules/cameras/cameras.controller.js';
 import { EstimatesController } from '../../modules/estimates/estimates.controller.js';
 import { HealthController } from '../../modules/health/health.controller.js';
 import { ReportsController } from '../../modules/reports/reports.controller.js';
@@ -28,11 +29,20 @@ const EXPECTED_OPERATIONS = [
   'GET /estimates',
   'GET /estimates/overview',
   'GET /estimates/insights',
+  'GET /cameras',
+  'POST /cameras',
+  'PATCH /cameras/{id}',
   'GET /health',
 ].sort();
 
 /** Routes that need no API key (marked @Public in code). */
-const PUBLIC_OPERATIONS = ['GET /health', 'POST /reports', 'GET /estimates/overview', 'GET /estimates/insights'];
+const PUBLIC_OPERATIONS = [
+  'GET /cameras',
+  'GET /health',
+  'POST /reports',
+  'GET /estimates/overview',
+  'GET /estimates/insights',
+];
 
 const EXPECTED_QUERY_PARAMS: Record<string, string[]> = {
   'GET /estimates': ['laneType'],
@@ -69,7 +79,7 @@ describe('OpenAPI document coverage', () => {
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
-      controllers: [BridgesController, ReportsController, EstimatesController, HealthController],
+      controllers: [BridgesController, ReportsController, EstimatesController, CamerasController, HealthController],
     })
       .useMocker(() => ({}))
       .compile();
