@@ -51,6 +51,10 @@ export class Bridge {
   @Column({ type: 'varchar', length: 100, nullable: true, default: null })
   shortName: string | null;
 
+  @ApiProperty({ type: String, nullable: true, example: 'Libre', description: 'Very short name for tabs and chips (falls back to shortName)' })
+  @Column({ type: 'varchar', length: 20, nullable: true, default: null })
+  tabLabel: string | null;
+
   @ApiProperty({ type: Number, nullable: true, example: 31.76521 })
   @Column({ type: 'double precision', nullable: true, default: null })
   latitude: number | null;

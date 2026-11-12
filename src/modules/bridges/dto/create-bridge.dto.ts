@@ -59,6 +59,13 @@ export class CreateBridgeDto {
   @MaxLength(100)
   shortName?: string;
 
+  @ApiPropertyOptional({ description: 'Very short name for tabs and chips', example: 'Libre' })
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(20)
+  tabLabel?: string;
+
   @ApiPropertyOptional({ description: 'Latitude of the crossing, for directions', example: 31.78287 })
   @IsOptional()
   @IsLatitude()

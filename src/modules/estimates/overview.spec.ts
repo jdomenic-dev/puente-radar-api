@@ -40,6 +40,7 @@ function bridge(overrides: Partial<Bridge> = {}): Bridge {
     cbpPortNumber: 240801,
     sortOrder: 6,
     shortName: 'Santa Teresa',
+    tabLabel: null,
     latitude: 31.78287,
     longitude: -106.67976,
     opensAt: '06:00',

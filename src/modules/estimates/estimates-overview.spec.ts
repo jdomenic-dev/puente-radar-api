@@ -15,6 +15,7 @@ const BRIDGES: Bridge[] = [
   trend: null,
   cbpPortNumber: null,
   shortName: null,
+  tabLabel: null,
   latitude: null,
   longitude: null,
   opensAt: null,

@@ -31,6 +31,7 @@ const BRIDGE_1: Bridge = {
   sortOrder: 0,
   lastUpdatedAt: null,
   shortName: null,
+  tabLabel: null,
   latitude: null,
   longitude: null,
   opensAt: null,

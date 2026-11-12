@@ -79,6 +79,7 @@ export class BridgesService {
       // Catalog data is static reference data: the seed may fill or correct it, but an
       // omitted field never erases what is stored (and operational status is never reset).
       if (dto.shortName !== undefined) existing.shortName = dto.shortName;
+      if (dto.tabLabel !== undefined) existing.tabLabel = dto.tabLabel;
       if (dto.latitude !== undefined) existing.latitude = dto.latitude;
       if (dto.longitude !== undefined) existing.longitude = dto.longitude;
       if (dto.opensAt !== undefined) existing.opensAt = dto.opensAt;

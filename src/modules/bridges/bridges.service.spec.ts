@@ -28,6 +28,7 @@ function makeBridge(overrides: Partial<Bridge> = {}): Bridge {
     lastUpdatedAt: null,
     cbpPortNumber: null,
     shortName: null,
+    tabLabel: null,
     latitude: null,
     longitude: null,
     opensAt: null,
