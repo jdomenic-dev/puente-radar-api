@@ -31,6 +31,14 @@ export interface LaneOverview {
   isBestOption: boolean;
   /** The official data used is older than its freshness window. */
   sourceStale: boolean;
+  /** Official CBP wait before blending; null when closed or CBP sent none. */
+  cbpMinutes: number | null;
+  /** Community estimate in minutes; null when nobody reported. */
+  communityMinutes: number | null;
+  /** Community reports behind communityMinutes in this lane (0 when none). */
+  reportCount: number;
+  /** Official wait about 30 minutes ago; null when no snapshot exists near that time. */
+  previousMinutes: number | null;
 }
 
 export interface BridgeOverview {
@@ -86,6 +94,10 @@ export function buildLaneOverview(entry: EstimateResponseEntry | undefined): Lan
       confidence: 'low',
       isBestOption: false,
       sourceStale: false,
+      cbpMinutes: null,
+      communityMinutes: null,
+      reportCount: 0,
+      previousMinutes: null,
     };
   }
 
@@ -101,6 +113,10 @@ export function buildLaneOverview(entry: EstimateResponseEntry | undefined): Lan
     confidence: entry.confidence,
     isBestOption: entry.isBestOption,
     sourceStale: entry.sourceStale === true,
+    cbpMinutes: entry.cbpMinutes,
+    communityMinutes: entry.communityMinutes,
+    reportCount: entry.communityReportCount,
+    previousMinutes: entry.previousMinutes,
   };
 }
 

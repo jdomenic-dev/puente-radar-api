@@ -40,6 +40,10 @@ function entryFor(bridge: Bridge, laneType: LaneType, minutes: number): Estimate
     laneAvailable: true,
     isBestOption: false,
     bestOptionFallback: false,
+    cbpMinutes: minutes,
+    communityMinutes: null,
+    communityReportCount: 0,
+    previousMinutes: null,
   };
 }
 

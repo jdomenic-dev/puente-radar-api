@@ -21,6 +21,10 @@ function entry(overrides: Partial<EstimateResponseEntry> = {}): EstimateResponse
     laneAvailable: true,
     isBestOption: true,
     bestOptionFallback: false,
+    cbpMinutes: 14,
+    communityMinutes: 9,
+    communityReportCount: 3,
+    previousMinutes: 20,
     ...overrides,
   };
 }
@@ -55,6 +59,37 @@ describe('mapTrend', () => {
 });
 
 describe('buildLaneOverview', () => {
+  it('exposes the official minutes, the community estimate with its report count, and the wait 30 minutes ago', () => {
+    const lane = buildLaneOverview(entry());
+
+    expect(lane).toMatchObject({
+      cbpMinutes: 14,
+      communityMinutes: 9,
+      reportCount: 3,
+      previousMinutes: 20,
+    });
+  });
+
+  it('keeps unknown figures as null (and zero reports), never as zero minutes', () => {
+    const lane = buildLaneOverview(
+      entry({ cbpMinutes: null, communityMinutes: null, communityReportCount: 0, previousMinutes: null }),
+    );
+
+    expect(lane.cbpMinutes).toBeNull();
+    expect(lane.communityMinutes).toBeNull();
+    expect(lane.reportCount).toBe(0);
+    expect(lane.previousMinutes).toBeNull();
+  });
+
+  it('has no figures when the bridge has no entry for the lane', () => {
+    expect(buildLaneOverview(undefined)).toMatchObject({
+      cbpMinutes: null,
+      communityMinutes: null,
+      reportCount: 0,
+      previousMinutes: null,
+    });
+  });
+
   it('describes an available lane', () => {
     expect(buildLaneOverview(entry())).toEqual({
       estimatedWaitMinutes: 12,
@@ -66,6 +101,10 @@ describe('buildLaneOverview', () => {
       confidence: 'high',
       isBestOption: true,
       sourceStale: false,
+      cbpMinutes: 14,
+      communityMinutes: 9,
+      reportCount: 3,
+      previousMinutes: 20,
     });
   });
 
@@ -106,6 +145,10 @@ describe('buildLaneOverview', () => {
       confidence: 'low',
       isBestOption: false,
       sourceStale: false,
+      cbpMinutes: null,
+      communityMinutes: null,
+      reportCount: 0,
+      previousMinutes: null,
     });
   });
 });

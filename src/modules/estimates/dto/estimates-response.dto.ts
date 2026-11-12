@@ -40,6 +40,25 @@ export class EstimateEntryDto {
   @ApiProperty() laneAvailable!: boolean;
   @ApiProperty({ description: 'True for the lane with the shortest wait' }) isBestOption!: boolean;
   @ApiProperty() bestOptionFallback!: boolean;
+  @ApiProperty({
+    nullable: true,
+    type: Number,
+    description: 'Official CBP wait before blending; null when closed or no data',
+  })
+  cbpMinutes!: number | null;
+  @ApiProperty({
+    nullable: true,
+    type: Number,
+    description: 'Community estimate in minutes; null when nobody reported',
+  })
+  communityMinutes!: number | null;
+  @ApiProperty({ description: 'Usable community reports behind communityMinutes' }) communityReportCount!: number;
+  @ApiProperty({
+    nullable: true,
+    type: Number,
+    description: 'Official CBP wait about 30 minutes ago; null when unknown',
+  })
+  previousMinutes!: number | null;
 }
 
 export class ScheduleDto {
@@ -66,6 +85,26 @@ export class LaneOverviewDto {
   @ApiProperty({ enum: CONFIDENCE_LEVELS }) confidence!: (typeof CONFIDENCE_LEVELS)[number];
   @ApiProperty({ description: 'True for the lane with the shortest wait at this bridge' }) isBestOption!: boolean;
   @ApiProperty({ description: 'True when the CBP data used is older than its freshness window' }) sourceStale!: boolean;
+  @ApiProperty({
+    nullable: true,
+    type: Number,
+    description: 'Official CBP wait before blending with the community; null when closed or no data',
+  })
+  cbpMinutes!: number | null;
+  @ApiProperty({
+    nullable: true,
+    type: Number,
+    description: 'Community estimate in minutes; null when nobody reported',
+  })
+  communityMinutes!: number | null;
+  @ApiProperty({ description: 'Community reports behind communityMinutes in this lane (0 when none)' })
+  reportCount!: number;
+  @ApiProperty({
+    nullable: true,
+    type: Number,
+    description: 'Official CBP wait about 30 minutes ago; null when no snapshot exists near that time',
+  })
+  previousMinutes!: number | null;
 }
 
 export class LanesOverviewDto {

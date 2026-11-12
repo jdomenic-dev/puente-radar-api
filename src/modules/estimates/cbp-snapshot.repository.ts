@@ -164,6 +164,45 @@ export class CbpSnapshotCustomRepository implements CbpSnapshotRepository {
       rowNumber: parseInt(r.rn, 10),
     }));
   }
+
+  /**
+   * For each bridge, the official snapshot closest to `target` within +/- `toleranceMs`
+   * (rows without a delay value are ignored). Bridges with no snapshot in that window are
+   * absent from the result: callers must treat that as "unknown", never as zero.
+   */
+  async findNearestAround(
+    bridgeIds: string[],
+    laneType: LaneType,
+    target: Date,
+    toleranceMs: number,
+  ): Promise<Array<Pick<SnapshotLaneRow, 'bridgeId' | 'laneType' | 'delayMinutes' | 'fetchedAt'>>> {
+    if (bridgeIds.length === 0) return [];
+
+    const lower = new Date(target.getTime() - toleranceMs);
+    const upper = new Date(target.getTime() + toleranceMs);
+
+    const rows = await this.dataSource.query<
+      Array<{ bridgeId: string; laneType: LaneType; delayMinutes: number; fetchedAt: Date | string }>
+    >(
+      `
+      SELECT DISTINCT ON ("bridgeId") "bridgeId", "laneType", "delayMinutes", "fetchedAt"
+      FROM "cbp_snapshots"
+      WHERE "bridgeId" = ANY($1)
+        AND "laneType" = $2
+        AND "delayMinutes" IS NOT NULL
+        AND "fetchedAt" BETWEEN $3 AND $4
+      ORDER BY "bridgeId", ABS(EXTRACT(EPOCH FROM ("fetchedAt" - $5::timestamptz))) ASC
+      `,
+      [bridgeIds, laneType, lower, upper, target],
+    );
+
+    return rows.map((row) => ({
+      bridgeId: row.bridgeId,
+      laneType: row.laneType,
+      delayMinutes: row.delayMinutes,
+      fetchedAt: row.fetchedAt instanceof Date ? row.fetchedAt : new Date(row.fetchedAt),
+    }));
+  }
 }
 
 /** DI token used to inject CbpSnapshotCustomRepository where CbpSnapshotRepository is expected. */

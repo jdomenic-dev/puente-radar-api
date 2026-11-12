@@ -64,11 +64,23 @@ export interface EstimateResponseEntry {
   laneAvailable: boolean;
   isBestOption: boolean;
   bestOptionFallback: boolean;
+  /** Official CBP wait, before blending with the community; null when closed or CBP sent none. */
+  cbpMinutes: number | null;
+  /** Community estimate in minutes; null when nobody reported. */
+  communityMinutes: number | null;
+  /** Usable community reports behind communityMinutes (0 when none). */
+  communityReportCount: number;
+  /** Official CBP wait about 30 minutes ago; null when no snapshot exists near that time. */
+  previousMinutes: number | null;
 }
 
 // ---------------------------------------------------------------------------
 // EstimatesService
 // ---------------------------------------------------------------------------
+
+/** How far back the 'previous wait' looks, and how much it may drift from that moment. */
+const PREVIOUS_WAIT_AGE_MS = 30 * 60_000;
+const PREVIOUS_WAIT_TOLERANCE_MS = 10 * 60_000;
 
 /** How long a computed overview is reused. CBP data changes every few minutes. */
 const OVERVIEW_CACHE_TTL_MS = 30_000;
@@ -194,6 +206,15 @@ export class EstimatesService {
       historyIndex.set(snap.bridgeId, entry);
     }
 
+    // Official wait about 30 minutes ago (the collector keeps a snapshot every 15 minutes)
+    const previousAround = await this.snapshotRepo.findNearestAround(
+      bridgeIds,
+      laneType,
+      new Date(now.getTime() - PREVIOUS_WAIT_AGE_MS),
+      PREVIOUS_WAIT_TOLERANCE_MS,
+    );
+    const previousByBridge = new Map(previousAround.map((row) => [row.bridgeId, row.delayMinutes]));
+
     // ── 5. Load all active adjustments for the selected laneType ─────────────
     const adjustments = await this.adjustmentRepository.find({
       where: { laneType, isActive: true },
@@ -281,6 +302,10 @@ export class EstimatesService {
         laneAvailable: calcResult.estimateUnavailable === undefined,
         isBestOption: false, // set in step 7
         bestOptionFallback: false,
+        cbpMinutes: officialInput && !officialInput.closed ? officialInput.wait : null,
+        communityMinutes: communityInput ? Math.round(communityInput.value) : null,
+        communityReportCount: communityInput ? communityInput.sampleSize : 0,
+        previousMinutes: previousByBridge.get(bridge.id) ?? null,
       });
     }
 

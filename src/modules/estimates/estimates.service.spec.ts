@@ -106,6 +106,7 @@ const mockCbpAdapter = {
 const mockSnapshotRepository = {
   findLatestPerBridgeLane: jest.fn(),
   findLatestTwoPerBridgeLane: jest.fn(),
+  findNearestAround: jest.fn(),
   save: jest.fn(),
 };
 
@@ -170,6 +171,7 @@ describe('EstimatesService', () => {
     // Default: no snapshot history (trend = stable by default)
     mockSnapshotRepository.findLatestTwoPerBridgeLane.mockResolvedValue([]);
     mockSnapshotRepository.findLatestPerBridgeLane.mockResolvedValue([]);
+    mockSnapshotRepository.findNearestAround.mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -408,6 +410,97 @@ describe('EstimatesService', () => {
   // ── C.4: Trend calculation ──────────────────────────────────────────────────
   // Trend uses findLatestTwoPerBridgeLane (rowNumber=1 current, rowNumber=2 previous).
   // findLatestPerBridgeLane is used for cbpStale check (default: []).
+
+  describe('figures behind the estimate (detail screen)', () => {
+    function arrange(opts: {
+      delay: number | null;
+      isOpen?: boolean;
+      community?: { sampleSize: number; weightedMean: number | null };
+    }) {
+      mockBridgesService.findActive.mockResolvedValue([BRIDGE_A]);
+      mockCbpAdapter.getLanes.mockResolvedValue({
+        lanes: [makeLane(PORT_A, LaneType.General, opts.delay, opts.isOpen ?? true)],
+        sourceStale: false,
+      } satisfies GetLanesResult);
+      mockReportsService.findUsableReports.mockResolvedValue(opts.community ?? { sampleSize: 0, weightedMean: null });
+      mockAdjustmentRepository.find.mockResolvedValue([]);
+    }
+
+    it('exposes the official CBP minutes separately from the blended estimate', async () => {
+      arrange({ delay: 40, community: { sampleSize: 3, weightedMean: 10 } });
+
+      const [entry] = await service.getEstimates(LaneType.General);
+
+      expect(entry.cbpMinutes).toBe(40);
+      expect(entry.estimatedWaitMinutes).not.toBe(40); // community data pulls the estimate down
+    });
+
+    it('exposes the community estimate and how many reports back it', async () => {
+      arrange({ delay: 40, community: { sampleSize: 3, weightedMean: 12.4 } });
+
+      const [entry] = await service.getEstimates(LaneType.General);
+
+      expect(entry.communityMinutes).toBe(12);
+      expect(entry.communityReportCount).toBe(3);
+    });
+
+    it('reports no community figure, and zero reports, when nobody reported', async () => {
+      arrange({ delay: 40 });
+
+      const [entry] = await service.getEstimates(LaneType.General);
+
+      expect(entry.communityMinutes).toBeNull();
+      expect(entry.communityReportCount).toBe(0);
+    });
+
+    it('has no official minutes when the lane is closed or CBP sent none', async () => {
+      arrange({ delay: null, isOpen: false });
+      const [closed] = await service.getEstimates(LaneType.General);
+      arrange({ delay: null });
+      const [noData] = await service.getEstimates(LaneType.General);
+
+      expect(closed.cbpMinutes).toBeNull();
+      expect(noData.cbpMinutes).toBeNull();
+    });
+
+    it('reports the official wait from about 30 minutes ago when a snapshot exists', async () => {
+      arrange({ delay: 40 });
+      mockSnapshotRepository.findNearestAround.mockResolvedValue([
+        { bridgeId: BRIDGE_A_ID, laneType: LaneType.General, delayMinutes: 25, fetchedAt: new Date() },
+      ]);
+
+      const [entry] = await service.getEstimates(LaneType.General);
+
+      expect(entry.previousMinutes).toBe(25);
+    });
+
+    it('leaves previousMinutes empty instead of guessing when there is no snapshot near 30 minutes ago', async () => {
+      arrange({ delay: 40 });
+
+      const [entry] = await service.getEstimates(LaneType.General);
+
+      expect(entry.previousMinutes).toBeNull();
+    });
+
+    it('looks for the snapshot around 30 minutes ago with a 10 minute tolerance', async () => {
+      arrange({ delay: 40 });
+      const before = Date.now();
+
+      await service.getEstimates(LaneType.General);
+
+      const [ids, lane, target, toleranceMs] = mockSnapshotRepository.findNearestAround.mock.calls[0] as [
+        string[],
+        LaneType,
+        Date,
+        number,
+      ];
+      expect(ids).toEqual([BRIDGE_A_ID]);
+      expect(lane).toBe(LaneType.General);
+      expect(before - target.getTime()).toBeGreaterThanOrEqual(30 * 60_000 - 50);
+      expect(before - target.getTime()).toBeLessThan(30 * 60_000 + 5_000);
+      expect(toleranceMs).toBe(10 * 60_000);
+    });
+  });
 
   describe('trend calculation', () => {
     it('returns stable when delta is within ±5', async () => {
