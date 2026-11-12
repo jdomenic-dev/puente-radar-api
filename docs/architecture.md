@@ -142,8 +142,22 @@ Redis keys (all disposable):
 | `throttle:<policy>:<hash>` and `:blocked` | Rate-limit counters and block markers |
 | `cbp:lanes:<port>:<lane>`                 | CBP lane data, short TTL              |
 
-There is also a scheduled job (`@Cron` every 15 minutes) that stores historical CBP data. It
-is switched off by default (`HISTORICAL_COLLECTION_ENABLED=false`).
+### History collector
+
+A scheduled job (`@Cron`, every 15 minutes) stores one CBP snapshot per bridge, lane and
+15-minute slot in `cbp_snapshots` (`slotStart`). It is switched on in staging with
+`HISTORICAL_COLLECTION_ENABLED=true` (default is `false`) and runs whether or not anyone uses
+the app.
+
+That history feeds the public `GET /estimates/insights` (`HISTORICAL_API_ENABLED=true`): the
+usual wait for the current half hour and the freest and busiest three-hour windows of the day,
+per weekday. A bridge and lane only get figures once there are at least 6 comparable dates
+with 70% coverage, about six weeks of collection. Until then the endpoint answers `null` and
+the app hides those sections; nothing is estimated to fill the gap.
+
+The overview also derives, per lane, the official CBP wait (`cbpMinutes`), the community estimate
+with its report count, and the wait about 30 minutes ago (`previousMinutes`, the snapshot
+nearest to that moment, +/- 10 minutes).
 
 ## 6. Delivery pipeline
 
