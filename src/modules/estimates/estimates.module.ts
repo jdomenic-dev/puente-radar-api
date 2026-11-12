@@ -33,6 +33,7 @@ import { CbpCollectionRun } from './historical/entities/cbp-collection-run.entit
 import { CbpCollectorService } from './historical/cbp-collector.service.js';
 import { HistoricalRepository } from './historical/historical.repository.js';
 import { HISTORICAL_CLOCK, HistoricalPatternsService } from './historical/historical-patterns.service.js';
+import { HistoricalInsightsService } from './historical/historical-insights.service.js';
 import { HistoricalPatternsController } from './historical/historical.controller.js';
 import type Redis from 'ioredis';
 
@@ -83,6 +84,7 @@ import type Redis from 'ioredis';
     HistoricalRepository,
     { provide: HISTORICAL_CLOCK, useValue: () => new Date() },
     HistoricalPatternsService,
+    HistoricalInsightsService,
   ],
   exports: [EstimatesService],
 })

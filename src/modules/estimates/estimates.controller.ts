@@ -18,8 +18,10 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { EstimatesService } from './estimates.service.js';
+import { HistoricalInsightsService } from './historical/historical-insights.service.js';
 import { EstimatesQueryDto } from './dto/estimates-query.dto.js';
 import { EstimateEntryDto, OverviewResponseDto } from './dto/estimates-response.dto.js';
+import { InsightsResponseDto } from './dto/insights-response.dto.js';
 import { Public } from '../../common/decorators/public.decorator.js';
 
 @ApiTags('estimates')
@@ -28,7 +30,10 @@ import { Public } from '../../common/decorators/public.decorator.js';
 })
 @Controller('estimates')
 export class EstimatesController {
-  constructor(private readonly estimatesService: EstimatesService) {}
+  constructor(
+    private readonly estimatesService: EstimatesService,
+    private readonly insightsService: HistoricalInsightsService,
+  ) {}
 
   @Get()
   @ApiSecurity('api-key')
@@ -63,5 +68,20 @@ export class EstimatesController {
   @ApiOkResponse({ type: OverviewResponseDto, description: 'Overview of every active bridge, in catalog order.' })
   getOverview() {
     return this.estimatesService.getOverview();
+  }
+
+  @Public()
+  @Get('insights')
+  @ApiOperation({
+    summary: 'History insights: usual wait right now and best times of the day, per bridge and lane',
+    description:
+      'Built from the collected CBP history (30-minute bins, same weekday). For each bridge and lane: ' +
+      '"usual" is the median wait for this half hour, and "bestTimes" the freest and busiest three-hour windows. ' +
+      'Both are null until at least 6 comparable dates with 70% coverage exist, so clients must hide them when null. ' +
+      'Public (no API key); cached for 5 minutes on the server.',
+  })
+  @ApiOkResponse({ type: InsightsResponseDto, description: 'One entry per active bridge, in catalog order.' })
+  getInsights() {
+    return this.insightsService.getInsights();
   }
 }

@@ -33,6 +33,10 @@ describe('authorization policy metadata', () => {
       expect(Reflect.getMetadata(IS_PUBLIC_KEY, handler('getOverview'))).toBe(true);
     });
 
+    it('makes the history insights public: the app reads usual waits and best times without the admin key', () => {
+      expect(Reflect.getMetadata(IS_PUBLIC_KEY, handler('getInsights'))).toBe(true);
+    });
+
     it('keeps GET /estimates protected and the controller itself not public', () => {
       expect(Reflect.getMetadata(IS_PUBLIC_KEY, handler('getEstimates'))).toBeUndefined();
       expect(Reflect.getMetadata(IS_PUBLIC_KEY, EstimatesController)).toBeUndefined();

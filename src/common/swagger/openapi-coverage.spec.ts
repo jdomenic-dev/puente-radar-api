@@ -27,11 +27,12 @@ const EXPECTED_OPERATIONS = [
   'GET /reports/bridge/{bridgeId}/recent',
   'GET /estimates',
   'GET /estimates/overview',
+  'GET /estimates/insights',
   'GET /health',
 ].sort();
 
 /** Routes that need no API key (marked @Public in code). */
-const PUBLIC_OPERATIONS = ['GET /health', 'POST /reports', 'GET /estimates/overview'];
+const PUBLIC_OPERATIONS = ['GET /health', 'POST /reports', 'GET /estimates/overview', 'GET /estimates/insights'];
 
 const EXPECTED_QUERY_PARAMS: Record<string, string[]> = {
   'GET /estimates': ['laneType'],

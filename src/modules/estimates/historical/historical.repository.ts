@@ -15,6 +15,17 @@ export interface HistoricalPatternRow {
   closureRate: number;
 }
 
+/** One 30-minute bin of a bridge's day profile (see findDayProfile). */
+export interface HistoricalDayProfileRow {
+  bridgeId: string;
+  /** Local time of the bin, "HH:00" or "HH:30". */
+  time: string;
+  median: number | null;
+  comparableLocalDates: number;
+  coverageRatio: number;
+  closureRate: number;
+}
+
 @Injectable()
 export class HistoricalRepository {
   constructor(private readonly dataSource: DataSource) {}
@@ -65,6 +76,51 @@ export class HistoricalRepository {
       comparableLocalDates: Number(row.comparableLocalDates),
       coverageStart: stringOrNull(row.coverageStart),
       coverageEnd: stringOrNull(row.coverageEnd),
+      coverageRatio: Number(row.coverageRatio),
+      closureRate: Number(row.closureRate),
+    }));
+  }
+
+  /**
+   * The whole day for one weekday and lane: one row per bridge and 30-minute bin, each with the
+   * median of the per-date medians and how much evidence stands behind it. Same rules as
+   * findPatterns, for every bin at once instead of one.
+   */
+  async findDayProfile(laneType: LaneType, dayOfWeek: number, timezone: string): Promise<HistoricalDayProfileRow[]> {
+    const rows = await this.dataSource.query<Array<Record<string, unknown>>>(
+      `
+      WITH local_rows AS (
+        SELECT "bridgeId", "isOpen", "delayMinutes",
+           ("slotStart" AT TIME ZONE $3)::date AS local_date,
+           to_char(
+             date_trunc('hour', "slotStart" AT TIME ZONE $3)
+               + floor(EXTRACT(MINUTE FROM "slotStart" AT TIME ZONE $3) / 30) * INTERVAL '30 minutes',
+             'HH24:MI'
+           ) AS bin
+        FROM "cbp_snapshots"
+        WHERE "slotStart" IS NOT NULL AND "laneType" = $1
+          AND EXTRACT(DOW FROM "slotStart" AT TIME ZONE $3) = $2
+      ), per_date AS (
+        SELECT "bridgeId", bin, local_date,
+          percentile_cont(0.5) WITHIN GROUP (ORDER BY "delayMinutes") FILTER (WHERE "isOpen" AND "delayMinutes" IS NOT NULL) AS date_median,
+          avg((NOT "isOpen")::int)::float AS closure_rate
+        FROM local_rows GROUP BY "bridgeId", bin, local_date
+      )
+      SELECT "bridgeId", bin AS time,
+        percentile_cont(0.5) WITHIN GROUP (ORDER BY date_median) AS median,
+        count(*)::int AS "comparableLocalDates",
+        count(*)::float / greatest(1, ((max(local_date) - min(local_date)) / 7) + 1) AS "coverageRatio",
+        coalesce(avg(closure_rate), 0) AS "closureRate"
+      FROM per_date GROUP BY "bridgeId", bin
+      ORDER BY "bridgeId", bin
+      `,
+      [laneType, dayOfWeek, timezone],
+    );
+    return rows.map((row) => ({
+      bridgeId: String(row.bridgeId),
+      time: String(row.time),
+      median: numberOrNull(row.median),
+      comparableLocalDates: Number(row.comparableLocalDates),
       coverageRatio: Number(row.coverageRatio),
       closureRate: Number(row.closureRate),
     }));
