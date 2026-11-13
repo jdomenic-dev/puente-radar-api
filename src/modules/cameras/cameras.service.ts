@@ -6,7 +6,7 @@
  * writes exist so a broken stream id is fixed in minutes without releasing the app.
  */
 
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { QueryFailedError, Repository } from 'typeorm';
 import { BridgesService } from '../bridges/bridges.service.js';
@@ -52,7 +52,12 @@ function isDuplicateKey(error: unknown): boolean {
 
 @Injectable()
 export class CamerasService {
+  private readonly logger = new Logger(CamerasService.name);
   private cache: { value: CamerasResponse; expiresAt: number } | null = null;
+  /** The lookup in progress, shared by every request that arrives meanwhile. */
+  private inFlight: Promise<CamerasResponse> | null = null;
+  /** Bumped by every write, so a lookup that started before it never fills the cache. */
+  private version = 0;
 
   constructor(
     @InjectRepository(BridgeCamera)
@@ -63,7 +68,22 @@ export class CamerasService {
   async getPublicCameras(): Promise<CamerasResponse> {
     const now = Date.now();
     if (this.cache && this.cache.expiresAt > now) return this.cache.value;
+    if (this.inFlight) return this.inFlight;
 
+    const version = this.version;
+    const load: Promise<CamerasResponse> = this.loadPublicCameras(now)
+      .then((value) => {
+        if (this.version === version) this.cache = { value, expiresAt: now + CACHE_TTL_MS };
+        return value;
+      })
+      .finally(() => {
+        if (this.inFlight === load) this.inFlight = null;
+      });
+    this.inFlight = load;
+    return load;
+  }
+
+  private async loadPublicCameras(now: number): Promise<CamerasResponse> {
     const [bridges, cameras] = await Promise.all([
       this.bridgesService.findActive(),
       this.cameraRepository.find({ where: { isActive: true }, order: { sortOrder: 'ASC', createdAt: 'ASC' } }),
@@ -74,14 +94,12 @@ export class CamerasService {
       byBridge.set(camera.bridgeId, [...(byBridge.get(camera.bridgeId) ?? []), camera]);
     }
 
-    const value: CamerasResponse = {
+    return {
       generatedAt: new Date(now).toISOString(),
       bridges: bridges
         .filter((bridge) => (byBridge.get(bridge.id) ?? []).length > 0)
         .map((bridge) => this.toBridgeCameras(bridge, byBridge.get(bridge.id) ?? [])),
     };
-    this.cache = { value, expiresAt: now + CACHE_TTL_MS };
-    return value;
   }
 
   async create(dto: CreateCameraDto): Promise<BridgeCamera> {
@@ -100,7 +118,9 @@ export class CamerasService {
       description: dto.description ?? null,
       sortOrder: dto.sortOrder ?? (await this.cameraRepository.count({ where: { bridgeId: bridge.id } })),
     });
-    return this.save(camera);
+    const saved = await this.save(camera);
+    this.logger.log(`Camera created: ${saved.id} (video ${saved.videoId}) on bridge ${bridge.id}`);
+    return saved;
   }
 
   async update(id: string, dto: UpdateCameraDto): Promise<BridgeCamera> {
@@ -116,7 +136,10 @@ export class CamerasService {
       camera.status = dto.status;
       camera.lastCheckedAt = new Date();
     }
-    return this.save(camera);
+    const saved = await this.save(camera);
+    const changed = Object.keys(dto).filter((key) => dto[key as keyof UpdateCameraDto] !== undefined);
+    this.logger.log(`Camera updated: ${id} fields=[${changed.join(',')}]`);
+    return saved;
   }
 
   /**
@@ -153,6 +176,8 @@ export class CamerasService {
     try {
       const saved = await this.cameraRepository.save(camera);
       this.cache = null; // the next public read sees the change
+      this.inFlight = null;
+      this.version += 1;
       return saved;
     } catch (error) {
       if (isDuplicateKey(error)) throw new ConflictException('That YouTube video is already registered');

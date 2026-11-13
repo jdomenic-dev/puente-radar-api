@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { QueryFailedError } from 'typeorm';
 import { CameraStatus } from '../../common/enums/camera.enum.js';
@@ -110,6 +111,61 @@ describe('CamerasService', () => {
       jest.setSystemTime(new Date('2026-11-12T12:01:10Z'));
       await instance.getPublicCameras();
       expect(repo.find).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('getPublicCameras under load', () => {
+    it('shares one lookup between requests that arrive while the cache is empty', async () => {
+      let release: (rows: Row[]) => void = () => undefined;
+      repo.find.mockReturnValue(new Promise<Row[]>((resolve) => (release = resolve)));
+      const instance = service();
+
+      const first = instance.getPublicCameras();
+      const second = instance.getPublicCameras();
+      const third = instance.getPublicCameras();
+      release([camera('c1', 'b1', 1)]);
+      const results = await Promise.all([first, second, third]);
+
+      expect(repo.find).toHaveBeenCalledTimes(1);
+      expect(results[0]).toBe(results[1]);
+      expect(results[1]).toBe(results[2]);
+    });
+
+    it('does not remember a failed lookup: the next request tries again', async () => {
+      repo.find.mockRejectedValueOnce(new Error('db down'));
+      const instance = service();
+
+      await expect(instance.getPublicCameras()).rejects.toThrow('db down');
+      const result = await instance.getPublicCameras();
+
+      expect(result.bridges.length).toBeGreaterThan(0);
+      expect(repo.find).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('audit trail', () => {
+    it('logs who-changed-what for a created camera, never the whole entity', async () => {
+      const log = jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+      bridges.findOneBySlug.mockResolvedValue(bridge('b1', 1));
+
+      await service().create({ bridgeSlug: 'puente-libre', videoId: 'mp3RS0y77tY', label: 'Norte' });
+
+      expect(log).toHaveBeenCalledWith(expect.stringContaining('created'));
+      expect(log).toHaveBeenCalledWith(expect.stringContaining('mp3RS0y77tY'));
+      log.mockRestore();
+    });
+
+    it('logs the fields an update changed', async () => {
+      const log = jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+      repo.findOne.mockResolvedValue(camera('c1', 'b1', 1));
+
+      await service().update('c1', { isActive: false, label: 'Sur' });
+
+      const line = String(log.mock.calls[0][0]);
+      expect(line).toContain('updated');
+      expect(line).toContain('isActive');
+      expect(line).toContain('label');
+      log.mockRestore();
     });
   });
 

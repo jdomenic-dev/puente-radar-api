@@ -9,6 +9,11 @@ function getReportHandler(handlerName: keyof ReportsController): object {
   return Object.getOwnPropertyDescriptor(ReportsController.prototype, handlerName)?.value as object;
 }
 
+// Metadata keys @nestjs/throttler writes for the "default" throttler (the package does not export them).
+const THROTTLER_LIMIT = 'THROTTLER:LIMIT';
+const THROTTLER_TTL = 'THROTTLER:TTL';
+const THROTTLER_SKIP = 'THROTTLER:SKIP';
+
 describe('authorization policy metadata', () => {
   it('marks every health endpoint public at the controller level', () => {
     expect(Reflect.getMetadata(IS_PUBLIC_KEY, HealthController)).toBe(true);
@@ -78,6 +83,16 @@ describe('authorization policy metadata', () => {
 
     it('makes the camera list public: the app reads it without the admin key', () => {
       expect(Reflect.getMetadata(IS_PUBLIC_KEY, handler('getCameras'))).toBe(true);
+    });
+
+    it.each(['create', 'update'] as const)('limits %s to 20 writes a minute, far below the global limit', (name) => {
+      expect(Reflect.getMetadata(THROTTLER_LIMIT + 'default', handler(name))).toBe(20);
+      expect(Reflect.getMetadata(THROTTLER_TTL + 'default', handler(name))).toBe(60000);
+    });
+
+    it.each(['getCameras', 'create', 'update'] as const)('never opts %s out of rate limiting', (name) => {
+      expect(Reflect.getMetadata(THROTTLER_SKIP + 'default', handler(name))).toBeFalsy();
+      expect(Reflect.getMetadata(THROTTLER_SKIP + 'default', CamerasController)).toBeFalsy();
     });
 
     it.each(['create', 'update'] as const)(

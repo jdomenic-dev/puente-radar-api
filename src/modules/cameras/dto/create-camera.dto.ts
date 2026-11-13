@@ -1,7 +1,10 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, Matches, MaxLength, Min } from 'class-validator';
+import { IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min } from 'class-validator';
 import { parseYouTubeVideoId } from '../youtube-video-id.js';
+
+/** Far more than any bridge will ever have; keeps the value inside the integer column. */
+export const MAX_SORT_ORDER = 1000;
 
 export class CreateCameraDto {
   @ApiPropertyOptional({ format: 'uuid', description: 'Bridge id. Send this or bridgeSlug, not both.' })
@@ -11,8 +14,10 @@ export class CreateCameraDto {
 
   @ApiPropertyOptional({ example: 'puente-libre', description: 'Bridge slug. Send this or bridgeId, not both.' })
   @IsOptional()
+  @Transform(({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
   @IsNotEmpty()
+  @MaxLength(100)
   bridgeSlug?: string;
 
   @ApiProperty({
@@ -24,6 +29,7 @@ export class CreateCameraDto {
   videoId: string;
 
   @ApiProperty({ example: 'Norte', description: 'Name of the view' })
+  @Transform(({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
   @IsNotEmpty()
   @MaxLength(80)
@@ -31,6 +37,7 @@ export class CreateCameraDto {
 
   @ApiPropertyOptional({ example: 'Mirando hacia EE. UU.' })
   @IsOptional()
+  @Transform(({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
   @MaxLength(160)
   description?: string;
@@ -39,5 +46,6 @@ export class CreateCameraDto {
   @IsOptional()
   @IsInt()
   @Min(0)
+  @Max(MAX_SORT_ORDER)
   sortOrder?: number;
 }

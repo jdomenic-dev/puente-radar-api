@@ -12,6 +12,7 @@ import {
   ApiTooManyRequestsResponse,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { Public } from '../../common/decorators/public.decorator.js';
 import { CamerasService } from './cameras.service.js';
 import type { CamerasResponse } from './cameras.service.js';
@@ -19,6 +20,9 @@ import { CamerasResponseDto } from './dto/cameras-response.dto.js';
 import { CreateCameraDto } from './dto/create-camera.dto.js';
 import { UpdateCameraDto } from './dto/update-camera.dto.js';
 import { BridgeCamera } from './entities/bridge-camera.entity.js';
+
+/** Writes are an admin chore: a script guessing the key gets 20 tries a minute, not 120. */
+const ADMIN_WRITES_PER_MINUTE = 20;
 
 @ApiTags('cameras')
 @ApiTooManyRequestsResponse({
@@ -43,6 +47,7 @@ export class CamerasController {
   }
 
   @Post()
+  @Throttle({ default: { ttl: 60_000, limit: ADMIN_WRITES_PER_MINUTE } })
   @ApiSecurity('api-key')
   @ApiOperation({
     summary: 'Register a camera (admin only)',
@@ -60,6 +65,7 @@ export class CamerasController {
   }
 
   @Patch(':id')
+  @Throttle({ default: { ttl: 60_000, limit: ADMIN_WRITES_PER_MINUTE } })
   @ApiSecurity('api-key')
   @ApiOperation({
     summary: 'Change a camera (admin only)',
