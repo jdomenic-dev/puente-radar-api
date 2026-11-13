@@ -33,9 +33,9 @@ export class BridgeCameras1790100000000 implements MigrationInterface {
     ['puente-zaragoza', 'KX-bm-Lhy3w', 'Norte', 'Mirando hacia EE. UU.', 0],
     ['puente-zaragoza', 'GC5RY3zipa4', 'Sur', 'Mirando hacia México', 1],
     ['puente-zaragoza', 'o5h9RB7qwY8', 'Av. Waterfill', 'Vista sur por la avenida', 2],
-    ['puente-stanton-lerdo', 'sOHFG6_3zAs', 'Norte', 'Línea Exprés, hacia EE. UU.', 0],
-    ['puente-stanton-lerdo', 'CYhISA_wFQ8', 'Sur', 'Línea Exprés, hacia México', 1],
-    ['puente-stanton-lerdo', 'RVXhhbkBGbI', 'Fila', 'Vista de la fila', 2],
+    ['puente-stanton-lerdo', 'CYhISA_wFQ8', 'Norte a Sur', 'Línea Exprés, vista de norte a sur', 0],
+    ['puente-stanton-lerdo', 'sOHFG6_3zAs', 'Sur a Norte', 'Línea Exprés, vista de sur a norte', 1],
+    ['puente-stanton-lerdo', 'RVXhhbkBGbI', 'Malecón', 'Línea Exprés, vista a Malecón', 2],
   ] as const;
 
   public async up(queryRunner: QueryRunner): Promise<void> {
